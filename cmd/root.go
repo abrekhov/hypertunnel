@@ -152,13 +152,13 @@ func Connection(cmd *cobra.Command, args []string) {
 		}
 
 		var fd *os.File
+		fd, err = os.Create(channel.Label())
+		cobra.CheckErr(err)
 		// Register the handlers
 		// channel.OnOpen(datachannel.HandleOnOpen(channel))
-		channel.OnOpen(func() {
-			fmt.Printf("Data channel '%s'-'%d' open. Transfering starting...\n", channel.Label(), channel.ID())
-			fd, err = os.Create(channel.Label())
-			cobra.CheckErr(err)
-		})
+		// channel.OnOpen(func() {
+		// 	fmt.Printf("Data channel '%s'-'%d' open. Transfering starting...\n", channel.Label(), channel.ID())
+		// })
 		channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 			fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
 			fd.Write(msg.Data)
@@ -166,6 +166,8 @@ func Connection(cmd *cobra.Command, args []string) {
 		channel.OnClose(func() {
 			fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
 			fd.Close()
+			os.Exit(0)
+			return
 		})
 	})
 	gatherFinished := make(chan struct{})
@@ -204,9 +206,7 @@ func Connection(cmd *cobra.Command, args []string) {
 
 	iceRole := webrtc.ICERoleControlled
 	if isOffer {
-		// log.Debugln("Offer iceRoleControl")
 		iceRole = webrtc.ICERoleControlling
-		// log.Debugf("%#v\n", iceRole)
 	}
 	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
 	cobra.CheckErr(err)
@@ -228,7 +228,6 @@ func Connection(cmd *cobra.Command, args []string) {
 	cobra.CheckErr(err)
 	// Construct the data channel as the offerer
 	if isOffer {
-		// log.Debugln("Offer data channel started")
 		var id uint16 = 1
 		info, err := os.Stat(file)
 		cobra.CheckErr(err)
@@ -243,14 +242,13 @@ func Connection(cmd *cobra.Command, args []string) {
 		channel, err = api.NewDataChannel(sctp, dcParams)
 		cobra.CheckErr(err)
 
-		var fd os.File
+		var fd *os.File
 		channel.OnOpen(func() {
 			fd, err := os.Open(file)
 			defer fd.Close()
 			cobra.CheckErr(err)
 			r := bufio.NewReader(fd)
 			chunk := make([]byte, 1024)
-			// w = bufio.NewWriter(fd)
 			for {
 				nbytes, err := r.Read(chunk)
 				log.Debugln("nbytes:", nbytes)
@@ -260,11 +258,14 @@ func Connection(cmd *cobra.Command, args []string) {
 				channel.Send(chunk[:nbytes])
 			}
 			cobra.CheckErr(err)
+			err = fd.Close()
+			cobra.CheckErr(err)
 			channel.Close()
 		})
 		channel.OnClose(func() {
 			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
-
+			os.Exit(0)
+			return
 		})
 		// Register the handlers
 		// channel.OnOpen(handleOnOpen(channel)) // TODO: OnOpen on handle ChannelAck
