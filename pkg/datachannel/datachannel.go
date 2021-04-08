@@ -11,17 +11,9 @@ import (
 	"strings"
 
 	"github.com/chzyer/readline"
-	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
-
-// HandleOnOpen handler for datachannel
-func HandleOnOpen(channel *webrtc.DataChannel) func() {
-	return func() {
-		fmt.Printf("Data channel '%s'-'%d' open. Transfering starts\n", channel.Label(), channel.ID())
-	}
-}
 
 // Encode base64 SDP
 func Encode(obj interface{}) string {
@@ -51,7 +43,7 @@ func MustReadStdin() string {
 	var in string
 	line, err := rl.Readline()
 	readline.Stdin.Close()
-	fmt.Println("SDP inserted...")
+	fmt.Println("SDP read.")
 	in = line
 	in = strings.TrimSpace(in)
 	return in
