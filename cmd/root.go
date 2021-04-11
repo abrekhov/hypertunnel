@@ -100,6 +100,7 @@ func initConfig() {
 }
 
 func Connection(cmd *cobra.Command, args []string) {
+
 	// Who receiver and who sender?
 	if file == "" {
 		isOffer = false
@@ -264,7 +265,6 @@ func Connection(cmd *cobra.Command, args []string) {
 		})
 		channel.OnClose(func() {
 			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
-			os.Exit(0)
 			return
 		})
 		// Register the handlers
