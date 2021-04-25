@@ -17,44 +17,38 @@ package cmd
 
 import (
 	"bufio"
-	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
-	"log"
-	mrand "math/rand"
 	"os"
+	"strings"
 
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/sirupsen/logrus"
+	"github.com/abrekhov/hypertunnel/pkg/datachannel"
+	webrtc "github.com/pion/webrtc/v3"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
+// Flags
 var (
-	cfgFile    string
-	debug      bool
-	sourcePort int64
-	key        string
-	message    string
+	cfgFile string
+	verbose bool
+	key     string
+	isOffer bool
+	file    string
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	// Use:   "hypertunnel",
-	Use:   "htun",
+	Use:   "ht",
 	Short: "P2P secure copy",
-	Long:  `HyperTunnel - is P2P secure copy tool. Inspired by magic-wormhole.`,
+	Long:  `HyperTunnel - is P2P secure copy tool. Inspired by magic-wormhole, gfile and so on...`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if debug {
-			logrus.SetLevel(logrus.DebugLevel)
+		if verbose {
+			log.SetLevel(log.DebugLevel)
 		}
 	},
 	// Uncomment the following line if your bare application
@@ -76,9 +70,10 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hypertunnel.yaml)")
-	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "debug level")
-	rootCmd.PersistentFlags().Int64VarP(&sourcePort, "sourcePort", "s", 0, "source port for Acceptor")
-	rootCmd.PersistentFlags().StringVarP(&key, "key", "k", "", "Destination multiaddr string")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
+	// rootCmd.Flags().BoolVarP(&isOffer, "offerer", "o", false, "IsOfferer?")
+	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
+	// rootCmd.PersistentFlags().StringVarP(&key, "stun", "s", "stun.l.google.com:19302", "Default stun server")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -105,146 +100,205 @@ func initConfig() {
 }
 
 func Connection(cmd *cobra.Command, args []string) {
-	logrus.Debugln("Acceptor is listenning..")
-	var r io.Reader
-	// if sourcePort == 0 {
-	// 	mrand.NewSource(time.Hour.Microseconds())
-	// 	mrand.Seed(time.Now().UnixNano())
-	// 	sourcePort = int64(mrand.Intn(65535))
-	// }
-	if debug {
-		// Use the port number as the randomness source.
-		// This will always generate the same host ID on multiple executions, if the same port number is used.
-		// Never do this in production code.
-		r = mrand.New(mrand.NewSource(int64(sourcePort)))
+
+	// Who receiver and who sender?
+	if file == "" {
+		isOffer = false
+		log.Infoln("Receiver started...")
 	} else {
-		r = rand.Reader
+		isOffer = true
+		info, err := os.Stat(file)
+		if os.IsNotExist(err) {
+			log.Panicln("File does not exist.")
+		}
+		if info.IsDir() {
+			log.Panicln("Directory is not yet supported")
+		} else {
+			log.Infoln("Sender started...")
+			log.Debugf("Fileinfo: %#v\n", info)
+		}
 	}
-
-	// Creates a new RSA key pair for this host.
-	prvKey, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
-	if err != nil {
-		panic(err)
+	// Prepare ICE gathering options
+	iceOptions := webrtc.ICEGatherOptions{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{"stun:stun.l.google.com:19302"}},
+		},
 	}
+	// Create an API object
+	api := webrtc.NewAPI()
+	// Create the ICE gatherer
+	gatherer, err := api.NewICEGatherer(iceOptions)
+	cobra.CheckErr(err)
+	// Construct the ICE transport
+	ice := api.NewICETransport(gatherer)
+	// Construct the DTLS transport
+	dtls, err := api.NewDTLSTransport(ice, nil)
+	cobra.CheckErr(err)
+	// Construct the SCTP transport
+	sctp := api.NewSCTPTransport(dtls)
+	log.Debugf("SCTP: %#v\n", sctp)
 
-	// 0.0.0.0 will listen on any interface device.
-	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", sourcePort))
-	host, err := libp2p.New(
-		context.Background(),
-		libp2p.ListenAddrs(sourceMultiAddr),
-		libp2p.Identity(prvKey),
-	)
-	logrus.Debugf("%+v\n", host)
-	logrus.Debugf("%+v\n", sourceMultiAddr)
-	if err != nil {
-		logrus.Panic("Something goes wrong!")
-	}
-
-	if key == "" {
-		host.SetStreamHandler("/chat/1.0.0", handleStream)
-
-		// Let's get the actual TCP port from our listen multiaddr, in case we're using 0 (default; random available port).
-		var port string
-		for _, la := range host.Network().ListenAddresses() {
-			if p, err := la.ValueForProtocol(multiaddr.P_TCP); err == nil {
-				port = p
-				break
-			}
+	// Handle incoming data channels (receiver)
+	sctp.OnDataChannel(func(channel *webrtc.DataChannel) {
+		fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
+		log.Debugf("DataChannel Opts: %#v\n", channel)
+		_, err := os.Stat(channel.Label())
+		if os.IsExist(err) {
+			log.Panicln("File with same name exists in current directory.")
 		}
-
-		if port == "" {
-			panic("was not able to find actual local port")
-		}
-
-		fmt.Printf("Run './htun -k /ip4/127.0.0.1/tcp/%v/p2p/%s' on another console.\n", port, host.ID().Pretty())
-		fmt.Println("You can replace 127.0.0.1 with public IP as well.")
-		fmt.Printf("\nWaiting for incoming connection\n\n")
-
-		// Hang forever
-		<-make(chan struct{})
-	} else {
-		fmt.Println("This node's multiaddresses:")
-		for _, la := range host.Addrs() {
-			fmt.Printf(" - %v\n", la)
-		}
-		fmt.Println()
-
-		// Turn the destination into a multiaddr.
-		maddr, err := multiaddr.NewMultiaddr(key)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		// Extract the peer ID from the multiaddr.
-		info, err := peer.AddrInfoFromP2pAddr(maddr)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		// Add the destination's peer multiaddress in the peerstore.
-		// This will be used during connection and stream creation by libp2p.
-		host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
-
-		// Start a stream with the destination.
-		// Multiaddress of the destination peer is fetched from the peerstore using 'peerId'.
-		s, err := host.NewStream(context.Background(), info.ID, "/chat/1.0.0")
-		if err != nil {
-			panic(err)
-		}
-
-		// Create a buffered stream so that read and writes are non blocking.
-		rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-
-		// Create a thread to read and write data.
-		go writeData(rw)
-		go readData(rw)
-
-		// Hang forever.
-		select {}
-	}
-}
-
-func handleStream(s network.Stream) {
-	log.Println("Got a new stream!")
-
-	// Create a buffer stream for non blocking read and write.
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-
-	go readData(rw)
-	go writeData(rw)
-
-	// stream 's' will stay open until you close it (or the other side closes it).
-}
-
-func readData(rw *bufio.ReadWriter) {
-	for {
-		str, _ := rw.ReadString('\n')
-
-		if str == "" {
+		c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
+		if !c {
+			fmt.Println("OK! Ignoring...")
 			return
 		}
-		if str != "\n" {
-			// Green console colour: 	\x1b[32m
-			// Reset console colour: 	\x1b[0m
-			fmt.Printf("\x1b[32m%s\x1b[0m> ", str)
-		}
 
+		var fd *os.File
+		fd, err = os.Create(channel.Label())
+		cobra.CheckErr(err)
+		// Register the handlers
+		// channel.OnOpen(datachannel.HandleOnOpen(channel))
+		// channel.OnOpen(func() {
+		// 	fmt.Printf("Data channel '%s'-'%d' open. Transfering starting...\n", channel.Label(), channel.ID())
+		// })
+		channel.OnMessage(func(msg webrtc.DataChannelMessage) {
+			fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
+			fd.Write(msg.Data)
+		})
+		channel.OnClose(func() {
+			fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
+			fd.Close()
+			os.Exit(0)
+			return
+		})
+	})
+	gatherFinished := make(chan struct{})
+	gatherer.OnLocalCandidate(func(i *webrtc.ICECandidate) {
+		if i == nil {
+			close(gatherFinished)
+		}
+	})
+
+	// Gather candidates
+	err = gatherer.Gather()
+	cobra.CheckErr(err)
+
+	<-gatherFinished
+	iceCandidates, err := gatherer.GetLocalCandidates()
+	cobra.CheckErr(err)
+
+	iceParams, err := gatherer.GetLocalParameters()
+	cobra.CheckErr(err)
+
+	dtlsParams, err := dtls.GetLocalParameters()
+	cobra.CheckErr(err)
+
+	sctpCapabilities := sctp.GetCapabilities()
+
+	s := datachannel.Signal{
+		ICECandidates:    iceCandidates,
+		ICEParameters:    iceParams,
+		DTLSParameters:   dtlsParams,
+		SCTPCapabilities: sctpCapabilities,
 	}
+	// Exchange the information
+	fmt.Println(datachannel.Encode(s))
+	remoteSignal := datachannel.Signal{}
+	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
+
+	iceRole := webrtc.ICERoleControlled
+	if isOffer {
+		iceRole = webrtc.ICERoleControlling
+	}
+	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
+	cobra.CheckErr(err)
+
+	log.Debugln("Start ICE TR")
+	// Start the ICE transport
+	// err = ice.Start(nil, remoteSignal.ICEParameters, &iceRole)
+	err = ice.Start(gatherer, remoteSignal.ICEParameters, &iceRole)
+	cobra.CheckErr(err)
+
+	log.Debugln("Start DTLS")
+	// Start the DTLS transport
+	err = dtls.Start(remoteSignal.DTLSParameters)
+	cobra.CheckErr(err)
+
+	log.Debugln("Start SCTP")
+	// Start the SCTP transport
+	err = sctp.Start(remoteSignal.SCTPCapabilities)
+	cobra.CheckErr(err)
+	// Construct the data channel as the offerer
+	if isOffer {
+		var id uint16 = 1
+		info, err := os.Stat(file)
+		cobra.CheckErr(err)
+
+		dcParams := &webrtc.DataChannelParameters{
+			Label: info.Name(),
+			ID:    &id,
+		}
+		// log.Debugf("%#v\n", dcParams)
+		log.Debugf("Fileinfo: %#v\n", info)
+		var channel *webrtc.DataChannel
+		channel, err = api.NewDataChannel(sctp, dcParams)
+		cobra.CheckErr(err)
+
+		var fd *os.File
+		channel.OnOpen(func() {
+			fd, err := os.Open(file)
+			defer fd.Close()
+			cobra.CheckErr(err)
+			r := bufio.NewReader(fd)
+			chunk := make([]byte, 1024)
+			for {
+				nbytes, err := r.Read(chunk)
+				log.Debugln("nbytes:", nbytes)
+				if err != nil {
+					break
+				}
+				channel.Send(chunk[:nbytes])
+			}
+			cobra.CheckErr(err)
+			err = fd.Close()
+			cobra.CheckErr(err)
+			channel.Close()
+		})
+		channel.OnClose(func() {
+			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
+			return
+		})
+		// Register the handlers
+		// channel.OnOpen(handleOnOpen(channel)) // TODO: OnOpen on handle ChannelAck
+		// go datachannel.HandleOnOpen(channel)() // Temporary alternative
+		// channel.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// 	fmt.Printf("Chunk from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
+		// 	w.Write(msg.Data)
+		// })
+		defer fd.Close()
+	}
+
+	select {}
 }
 
-func writeData(rw *bufio.ReadWriter) {
-	stdReader := bufio.NewReader(os.Stdin)
+func askForConfirmation(s string, in io.Reader) bool {
+	return true
+	tries := 3
+	reader := bufio.NewReader(in)
+	for ; tries > 0; tries-- {
+		fmt.Printf("%s [y/n]: ", s)
 
-	for {
-		fmt.Print("> ")
-		sendData, err := stdReader.ReadString('\n')
-
+		res, err := reader.ReadString('\n')
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		rw.WriteString(fmt.Sprintf("%s\n", sendData))
-		rw.Flush()
+		// Empty input (i.e. "\n")
+		if len(res) < 2 {
+			continue
+		}
+
+		return strings.ToLower(strings.TrimSpace(res))[0] == 'y'
 	}
 
+	return false
 }
