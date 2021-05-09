@@ -3,7 +3,18 @@
 ## Installation
 
 ```bash
+git clone https://github.com/abrekhov/hypertunnel
+cd hypertunnel
 go build -o ht
+```
+
+Or using go install (GOBIN must be set)
+
+```bash
+export GOPATH=$HOME/go
+export GOBIN="${GOPATH}/bin"
+export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
+go install github.com/abrekhov/hypertunnel
 ```
 
 ## Usage
@@ -16,13 +27,7 @@ Both computers must have access to the Internet!
 #Second machine
 ./ht
 #Cross insert SPDs
-
 ```
-
-```bash
-./ht
-```
-
 
 ## RoadMap
 
@@ -34,5 +39,6 @@ Both computers must have access to the Internet!
 - [ ] Decompose and refactor
 - [ ] Directory transfer
 - [ ] Barline
+- [ ] SSH server behind NAT
 - [ ] Tests
 - [ ] Benchs
