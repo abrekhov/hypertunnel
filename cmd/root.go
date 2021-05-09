@@ -18,9 +18,8 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"strings"
+	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
 	webrtc "github.com/pion/webrtc/v3"
@@ -35,7 +34,6 @@ import (
 var (
 	cfgFile string
 	verbose bool
-	key     string
 	isOffer bool
 	file    string
 )
@@ -71,9 +69,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hypertunnel.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
-	// rootCmd.Flags().BoolVarP(&isOffer, "offerer", "o", false, "IsOfferer?")
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
-	// rootCmd.PersistentFlags().StringVarP(&key, "stun", "s", "stun.l.google.com:19302", "Default stun server")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -139,38 +135,7 @@ func Connection(cmd *cobra.Command, args []string) {
 	log.Debugf("SCTP: %#v\n", sctp)
 
 	// Handle incoming data channels (receiver)
-	sctp.OnDataChannel(func(channel *webrtc.DataChannel) {
-		fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
-		log.Debugf("DataChannel Opts: %#v\n", channel)
-		_, err := os.Stat(channel.Label())
-		if os.IsExist(err) {
-			log.Panicln("File with same name exists in current directory.")
-		}
-		c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
-		if !c {
-			fmt.Println("OK! Ignoring...")
-			return
-		}
-
-		var fd *os.File
-		fd, err = os.Create(channel.Label())
-		cobra.CheckErr(err)
-		// Register the handlers
-		// channel.OnOpen(datachannel.HandleOnOpen(channel))
-		// channel.OnOpen(func() {
-		// 	fmt.Printf("Data channel '%s'-'%d' open. Transfering starting...\n", channel.Label(), channel.ID())
-		// })
-		channel.OnMessage(func(msg webrtc.DataChannelMessage) {
-			fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
-			fd.Write(msg.Data)
-		})
-		channel.OnClose(func() {
-			fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
-			fd.Close()
-			os.Exit(0)
-			return
-		})
-	})
+	sctp.OnDataChannel(datachannel.FileTransferHandler)
 	gatherFinished := make(chan struct{})
 	gatherer.OnLocalCandidate(func(i *webrtc.ICECandidate) {
 		if i == nil {
@@ -201,7 +166,11 @@ func Connection(cmd *cobra.Command, args []string) {
 		SCTPCapabilities: sctpCapabilities,
 	}
 	// Exchange the information
+	fmt.Printf("Encoded signal:\n\n")
 	fmt.Println(datachannel.Encode(s))
+	fmt.Printf("\n")
+
+	// Waiting for encoded signal from other side
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
 
@@ -214,7 +183,6 @@ func Connection(cmd *cobra.Command, args []string) {
 
 	log.Debugln("Start ICE TR")
 	// Start the ICE transport
-	// err = ice.Start(nil, remoteSignal.ICEParameters, &iceRole)
 	err = ice.Start(gatherer, remoteSignal.ICEParameters, &iceRole)
 	cobra.CheckErr(err)
 
@@ -234,8 +202,9 @@ func Connection(cmd *cobra.Command, args []string) {
 		cobra.CheckErr(err)
 
 		dcParams := &webrtc.DataChannelParameters{
-			Label: info.Name(),
-			ID:    &id,
+			Label:   info.Name(),
+			ID:      &id,
+			Ordered: true,
 		}
 		// log.Debugf("%#v\n", dcParams)
 		log.Debugf("Fileinfo: %#v\n", info)
@@ -246,59 +215,32 @@ func Connection(cmd *cobra.Command, args []string) {
 		var fd *os.File
 		channel.OnOpen(func() {
 			fd, err := os.Open(file)
-			defer fd.Close()
 			cobra.CheckErr(err)
 			r := bufio.NewReader(fd)
-			chunk := make([]byte, 1024)
+			chunk := make([]byte, 65534)
 			for {
 				nbytes, err := r.Read(chunk)
 				log.Debugln("nbytes:", nbytes)
 				if err != nil {
+					<-time.After(time.Second * 30)
 					break
 				}
-				channel.Send(chunk[:nbytes])
+				err = channel.Send(chunk[:nbytes])
+				if err != nil {
+					log.Debugln(err)
+				}
 			}
-			cobra.CheckErr(err)
-			err = fd.Close()
-			cobra.CheckErr(err)
-			channel.Close()
+			// err = fd.Close()
+			// cobra.CheckErr(err)
+			// channel.Close()
 		})
 		channel.OnClose(func() {
+			fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
 			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
-			return
+			os.Exit(0)
 		})
-		// Register the handlers
-		// channel.OnOpen(handleOnOpen(channel)) // TODO: OnOpen on handle ChannelAck
-		// go datachannel.HandleOnOpen(channel)() // Temporary alternative
-		// channel.OnMessage(func(msg webrtc.DataChannelMessage) {
-		// 	fmt.Printf("Chunk from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
-		// 	w.Write(msg.Data)
-		// })
 		defer fd.Close()
 	}
 
 	select {}
-}
-
-func askForConfirmation(s string, in io.Reader) bool {
-	return true
-	tries := 3
-	reader := bufio.NewReader(in)
-	for ; tries > 0; tries-- {
-		fmt.Printf("%s [y/n]: ", s)
-
-		res, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// Empty input (i.e. "\n")
-		if len(res) < 2 {
-			continue
-		}
-
-		return strings.ToLower(strings.TrimSpace(res))[0] == 'y'
-	}
-
-	return false
 }

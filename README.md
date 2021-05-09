@@ -36,6 +36,7 @@ Both computers must have access to the Internet!
 - [X] TCP/IP Connection through stun/turn/ice
 - [X] ORTC connection behind NAT
 - [X] Move one file between candidates behind NAT
+- [ ] Start candidates in any order
 - [ ] Decompose and refactor
 - [ ] Directory transfer
 - [ ] Barline
