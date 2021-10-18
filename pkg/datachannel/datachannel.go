@@ -42,8 +42,9 @@ func MustReadStdin() string {
 
 	var in string
 	line, err := rl.Readline()
+	cobra.CheckErr(err)
 	readline.Stdin.Close()
-	fmt.Println("SDP read.")
+	fmt.Printf("\nSDP read.\n")
 	in = line
 	in = strings.TrimSpace(in)
 	return in

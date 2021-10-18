@@ -1,0 +1,10 @@
+service:
+  sshd:
+    enabled: true
+    running: true
+dns:
+  8.8.8.8:
+    resolvable: true
+    addrs:
+    - 8.8.8.8
+    timeout: 500
