@@ -1,22 +1,17 @@
 # .github/workflows/release.yaml
 
 on:
-  push
+  release
 
 jobs:
-  go-pipeline:
-    name: Go Checks
+  build:
+    name: Build Go
     runs-on: ubuntu-latest
     steps:
-    - name: go1.18 release
-      uses: shoukoo/golang-pipeline/go1.18/release@master
-  release-linux-amd64:
-    name: release linux/amd64
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: wangyoucao577/go-release-action@v1.28
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: linux
-        goarch: amd64
+    - name: linux build
+      uses: shoukoo/golang-pipeline/go1.12/release@master
+      if: github.event.action == 'published'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GOOS: linux
+        GOARCH: amd64
