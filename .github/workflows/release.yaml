@@ -9,9 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: linux build
-      uses: shoukoo/golang-pipeline/go1.18/release@master
-      # if: github.event.action == 'published'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GOOS: linux
-        GOARCH: amd64
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+    - run: go version
+    - run: go mod download
+    - run: go build -o ht
