@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: linux build
-      uses: shoukoo/golang-pipeline/go1.12/release@master
-      if: github.event.action == 'published'
+      uses: shoukoo/golang-pipeline/go1.18/release@master
+      # if: github.event.action == 'published'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GOOS: linux
