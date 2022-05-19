@@ -28,3 +28,4 @@ jobs:
         prerelease: false
         files: |
           build/ht
+
