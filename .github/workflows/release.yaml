@@ -12,6 +12,7 @@ jobs:
     - uses: actions/setup-go@v3
     - run: go version
     - run: go mod download
+    - run: ls
     - run: go build -o ht
     - name: Download a single artifact
       uses: actions/download-artifact@v3
