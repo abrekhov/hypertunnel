@@ -12,8 +12,12 @@ jobs:
     - uses: actions/setup-go@v3
     - run: go version
     - run: go mod download
-    - run: go build -o ht
+    - run: ls
+    - run: mkdir build
+    - run: go build -o build/ht
+    - run: ls build
     - name: Download a single artifact
-      uses: actions/download-artifact@v3
+      uses: actions/upload-artifact@v3
       with:
         name: ht
+        path: build/ht
