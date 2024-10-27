@@ -17,8 +17,9 @@ builds:
     ldflags:
       - -s -w
 
-# Disable archiving by setting archives to an empty list
-archives: []
+# Disable archiving 
+archives:
+  - format: binary
 
 # Generate checksums for the binaries
 checksum:
