@@ -1,0 +1,31 @@
+# .goreleaser.yml
+project_name: hypertunnel
+
+# Build configuration
+builds:
+  - main: ./main.go
+    binary: "ht_{{ .Os }}_{{ .Arch }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+# Disable archiving by setting archives to an empty list
+archives: []
+
+# Generate checksums for the binaries
+checksum:
+  name_template: 'checksums.txt'
+
+# Release configuration
+release:
+  github:
+    owner: abrekhov 
+    name: hypertunnel
