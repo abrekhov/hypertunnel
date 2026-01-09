@@ -647,34 +647,866 @@ func EncryptFile(cmd *cobra.Command, args []string) {
 
 ---
 
-## Roadmap and TODOs
+## Project Vision & Roadmap
 
-From `README.md` and codebase analysis:
+### Vision Statement
 
-**Completed:**
+Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/directory transfer tool** for any hosts behind NAT, without requiring public IPs. Make it universally accessible through standard package managers (apt, brew, etc.) with a delightful terminal user interface.
+
+### Design Principles
+
+1. **Simplicity First** - Zero configuration, works out of the box
+2. **Beautiful UX** - Terminal interface should be a joy to use
+3. **Robust & Reliable** - Handle edge cases, resume transfers, verify integrity
+4. **Universal Access** - One-command install on any platform
+5. **Secure by Default** - End-to-end encryption, no trust in relays
+
+---
+
+## Development Roadmap
+
+### ✅ Phase 0: Foundation (COMPLETED)
+
+**Status:** Done ✓
+
 - [x] AES-256 file encryption/decryption
 - [x] WebRTC P2P connection with NAT traversal
 - [x] Single file transfer between peers
 - [x] Manual signal exchange
-- [x] Cross-platform builds
+- [x] Cross-platform builds via GoReleaser
+- [x] Basic CLI with Cobra framework
 
-**Pending (from README):**
-- [ ] Start candidates in any order (currently order-dependent)
-- [ ] Decompose and refactor code
-- [ ] Directory transfer support
-- [ ] Progress bar ("Barline")
-- [ ] SSH server behind NAT
-- [ ] Comprehensive tests
-- [ ] Performance benchmarks
+---
 
-**Additional Improvements (not in roadmap):**
-- [ ] Implement actual confirmation in `askForConfirmation()` (currently bypassed)
-- [ ] Add integration tests for end-to-end file transfer
-- [ ] Support resumable transfers
-- [ ] Add metadata verification (checksums)
-- [ ] Implement automatic TURN relay selection
-- [ ] Add configuration for STUN/TURN servers
-- [ ] Improve error messages for user clarity
+### 🚧 Phase 1: Core Functionality & Robustness
+
+**Goal:** Make HyperTunnel production-ready for reliable file/directory transfers
+
+#### 1.1 Directory Transfer Support
+- [ ] **Recursive directory traversal**
+  - Walk directory tree, preserve structure
+  - Support for symlinks (configurable)
+  - Exclude patterns (.gitignore-style)
+
+- [ ] **Archive-based transfer**
+  - Stream tar.gz on-the-fly (don't store full archive)
+  - Compress during transfer for efficiency
+  - Extract on receiver side automatically
+
+- [ ] **Metadata preservation**
+  - File permissions (chmod)
+  - Timestamps (mtime, atime)
+  - Ownership (if running as root/sudo)
+
+**Files to modify:**
+- `cmd/root.go` - Add directory detection logic
+- `pkg/transfer/` (new package) - Directory streaming logic
+- `pkg/archive/` (new package) - On-the-fly tar.gz streaming
+
+#### 1.2 Enhanced File Transfer Protocol
+- [ ] **Progress reporting**
+  - Track bytes sent/received
+  - Calculate transfer speed (MB/s)
+  - Estimate time remaining (ETA)
+  - Expose metrics via channel for UI
+
+- [ ] **Resumable transfers**
+  - Generate transfer ID (hash of filename + size)
+  - Track partial progress in temp file
+  - Send/request specific byte ranges
+  - Resume from last checkpoint on reconnection
+
+- [ ] **Integrity verification**
+  - Calculate SHA-256 checksum during transfer
+  - Send checksum with metadata
+  - Verify on receiver, report mismatch
+  - Option to auto-retry corrupted transfers
+
+- [ ] **Automatic retry & recovery**
+  - Detect disconnections
+  - Auto-reconnect with exponential backoff
+  - Resume from last known good state
+  - Configurable retry attempts
+
+**Files to modify:**
+- `pkg/datachannel/handlers.go` - Add progress tracking
+- `pkg/transfer/` (new package) - Resume logic, checksums
+- `cmd/root.go` - Retry loop on connection failure
+
+#### 1.3 Connection Improvements
+- [ ] **Bi-directional candidate exchange**
+  - Allow starting in any order (remove offer/answer dependency)
+  - Implement symmetric connection setup
+  - Both peers act as ICE controllers initially
+
+- [ ] **Multiple STUN/TURN servers**
+  - Default list: Google, Mozilla, Cloudflare STUN
+  - Support custom STUN/TURN via config
+  - Parallel candidate gathering from multiple sources
+  - Automatic selection of fastest relay
+
+- [ ] **Connection quality monitoring**
+  - Track RTT (round-trip time)
+  - Monitor packet loss
+  - Switch to TURN if direct connection degrades
+  - Expose connection stats in UI
+
+**Files to modify:**
+- `cmd/root.go` - ICE role negotiation, multi-server support
+- `pkg/datachannel/signal.go` - Enhanced signal struct
+- `pkg/stun/` (new package) - Multi-server management
+
+#### 1.4 Security Enhancements
+- [ ] **Fix confirmation bypass bug**
+  - Remove `return true` hardcode in `askForConfirmation()`
+  - Implement actual user prompt before accepting files
+  - Add --auto-accept flag for automation
+
+- [ ] **Improved key derivation**
+  - Replace SHA256 with Argon2id KDF
+  - Add salt (random or derived from filename)
+  - Configurable iterations for security/performance balance
+
+- [ ] **Signal authentication (optional)**
+  - Add HMAC signature to signals
+  - Pre-shared key for signal verification
+  - Prevent MITM attacks during exchange
+
+- [ ] **File overwrite protection**
+  - Fix `os.IsExist()` bug in `handlers.go:18-21`
+  - Prompt user before overwriting existing files
+  - Add --overwrite flag for automation
+
+**Files to modify:**
+- `pkg/datachannel/handlers.go` - Fix confirmation & overwrite
+- `pkg/hashutils/hashutils.go` - Implement Argon2id
+- `pkg/crypto/` (new package) - Signal authentication
+
+#### 1.5 Testing & Quality
+- [ ] **Unit tests**
+  - Complete `datachannel_test.go` (currently skeleton)
+  - Test Encode/Decode functions
+  - Test key derivation functions
+  - Mock WebRTC for reproducible tests
+
+- [ ] **Integration tests**
+  - End-to-end file transfer (loopback)
+  - Directory transfer with various structures
+  - Encryption/decryption round-trip
+  - Connection failure scenarios
+
+- [ ] **Performance benchmarks**
+  - Benchmark encryption speed
+  - Benchmark transfer throughput
+  - Memory usage profiling
+  - Optimize hot paths
+
+- [ ] **CI/CD testing pipeline**
+  - Add GitHub Actions workflow for tests
+  - Run tests on PRs and commits
+  - Code coverage reporting
+  - Linting (golangci-lint)
+
+**Files to create:**
+- `pkg/datachannel/datachannel_test.go` - Complete tests
+- `pkg/transfer/transfer_test.go` - New tests
+- `integration_test.go` - End-to-end scenarios
+- `.github/workflows/test.yaml` - CI pipeline
+
+**Estimated Effort:** 3-4 weeks (with testing)
+
+---
+
+### 🎨 Phase 2: Beautiful Terminal User Interface
+
+**Goal:** Transform HyperTunnel into a delightful TUI experience using best-in-class Go libraries
+
+#### 2.1 TUI Library Selection
+
+**Recommended Stack:**
+
+1. **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** - TUI framework
+   - Elm-inspired architecture (model-update-view)
+   - Handles input, rendering, and state elegantly
+   - Active development, excellent documentation
+   - Used by: Glow, Soft Serve, VHS
+
+2. **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** - Styling & layout
+   - CSS-like styling for terminal output
+   - Colors, borders, padding, margins
+   - Responsive layouts
+   - Pairs perfectly with Bubble Tea
+
+3. **[Bubbles](https://github.com/charmbracelet/bubbles)** - Pre-built components
+   - Progress bars (for file transfer)
+   - Spinners (for connection setup)
+   - Text inputs (for keyphrases)
+   - Viewports (for long logs)
+   - Lists (for file selection)
+
+4. **[Glamour](https://github.com/charmbracelet/glamour)** - Markdown rendering
+   - Render help text beautifully
+   - Styled error messages
+   - Rich documentation in-app
+
+**Add dependencies:**
+```bash
+go get github.com/charmbracelet/bubbletea@latest
+go get github.com/charmbracelet/lipgloss@latest
+go get github.com/charmbracelet/bubbles@latest
+go get github.com/charmbracelet/glamour@latest
+```
+
+#### 2.2 UI Components to Build
+
+**2.2.1 Connection Screen**
+```
+╭─────────────────────────────────────────────╮
+│  🚀 HyperTunnel - P2P File Transfer        │
+│                                             │
+│  Mode: Sender                               │
+│  File: large-video.mp4 (1.2 GB)            │
+│                                             │
+│  ⏳ Establishing connection...             │
+│  ◆ Gathering ICE candidates  [✓]           │
+│  ◆ Waiting for peer signal   [⣾]           │
+│                                             │
+│  📋 Your connection code:                  │
+│  ┌───────────────────────────────────────┐ │
+│  │ eyJJQ0VDYW5kaWRhdGVzIjpbeyJGb3VuZGF0│ │
+│  │ aW9uIjoiIiwiUHJpb3JpdHkiOjIxMzAzNzY3│ │
+│  │ ...                                   │ │
+│  └───────────────────────────────────────┘ │
+│                                             │
+│  [Copied to clipboard!]                    │
+│                                             │
+│  Press Ctrl+C to cancel                    │
+╰─────────────────────────────────────────────╯
+```
+
+**2.2.2 Transfer Screen**
+```
+╭─────────────────────────────────────────────╮
+│  📦 Transferring: large-video.mp4          │
+│                                             │
+│  Progress:  ████████████░░░░░░░  67%       │
+│            812 MB / 1.2 GB                  │
+│                                             │
+│  Speed:     15.3 MB/s                       │
+│  Time:      00:03:42 elapsed                │
+│  ETA:       00:01:45 remaining              │
+│                                             │
+│  Connection: Direct P2P (low latency)       │
+│  Encrypted: ✓ AES-256-CTR                  │
+│  Verified:  ✓ Checksums match               │
+│                                             │
+│  Peer: 192.168.1.15:54321 (relay)          │
+│  RTT: 23ms  |  Loss: 0.1%                   │
+╰─────────────────────────────────────────────╯
+```
+
+**2.2.3 Directory Transfer Screen**
+```
+╭─────────────────────────────────────────────╮
+│  📁 Transferring directory: my-project/    │
+│                                             │
+│  Files:     47 / 156  (30%)                 │
+│  Size:      523 MB / 1.8 GB  (29%)          │
+│                                             │
+│  Current:   src/assets/logo.svg             │
+│  Progress:  ██████████░░░░░░░░  52%         │
+│                                             │
+│  ✓ README.md                                │
+│  ✓ package.json                             │
+│  ✓ src/index.js                             │
+│  ⣾ src/assets/logo.svg                      │
+│  ○ src/components/App.jsx                   │
+│  ○ ...                                      │
+│                                             │
+│  Speed: 18.2 MB/s  |  ETA: 00:02:15        │
+╰─────────────────────────────────────────────╯
+```
+
+**2.2.4 Completion Screen**
+```
+╭─────────────────────────────────────────────╮
+│                                             │
+│          ✨ Transfer Complete! ✨           │
+│                                             │
+│  📦 large-video.mp4                         │
+│  📊 1.2 GB transferred in 4m 23s            │
+│  ⚡ Average speed: 14.8 MB/s                │
+│                                             │
+│  ✓ Integrity verified (SHA-256)            │
+│  ✓ File saved to: ~/Downloads/             │
+│                                             │
+│  [ Press Enter to exit ]                   │
+│                                             │
+╰─────────────────────────────────────────────╯
+```
+
+#### 2.3 Interactive Features
+
+- [ ] **File browser** (sender mode)
+  - Navigate filesystem with arrow keys
+  - Multi-select files/directories
+  - Preview file size before sending
+  - Filter by pattern (*.pdf, *.jpg, etc.)
+
+- [ ] **QR code generation** (optional)
+  - Generate QR code from signal for easy mobile exchange
+  - Use `github.com/skip2/go-qrcode`
+  - Display in terminal using Unicode blocks
+
+- [ ] **Live logs viewer**
+  - Scrollable debug log in bottom pane
+  - Toggle visibility with 'd' key
+  - Color-coded by severity (info/warn/error)
+
+- [ ] **Keyboard shortcuts**
+  - `?` - Show help overlay
+  - `c` - Copy signal to clipboard
+  - `p` - Paste peer signal
+  - `d` - Toggle debug logs
+  - `q` or `Ctrl+C` - Quit gracefully
+
+- [ ] **Responsive layout**
+  - Adapt to terminal size
+  - Minimum 80x24, graceful degradation
+  - Hide/collapse sections on small terminals
+
+#### 2.4 Implementation Strategy
+
+**New package structure:**
+```
+pkg/
+├── tui/
+│   ├── model.go          # Bubble Tea model (state)
+│   ├── update.go         # Update logic (handle events)
+│   ├── view.go           # Rendering (UI output)
+│   ├── components/       # Reusable UI components
+│   │   ├── progress.go   # Custom progress bar
+│   │   ├── connection.go # Connection status widget
+│   │   ├── filelist.go   # File browser
+│   │   └── statusbar.go  # Bottom status bar
+│   └── styles.go         # Lip Gloss styles
+```
+
+**Migration path:**
+1. Keep existing CLI (`cmd/root.go`) as fallback
+2. Add `--tui` flag to enable new interface
+3. Default to TUI if terminal is interactive
+4. Detect non-TTY (pipes, scripts) and use plain mode
+
+**Files to modify:**
+- `cmd/root.go` - Add TUI mode toggle
+- `pkg/tui/` (new package) - All TUI logic
+- `go.mod` - Add Charm dependencies
+
+**Estimated Effort:** 2-3 weeks
+
+---
+
+### 📦 Phase 3: Distribution & Packaging
+
+**Goal:** Make installation effortless - one command on any platform
+
+#### 3.1 GitHub Container Registry (GHCR)
+
+**Purpose:** Docker images for containerized usage
+
+**Setup:**
+```dockerfile
+# Dockerfile
+FROM golang:1.23-alpine AS builder
+WORKDIR /build
+COPY . .
+RUN go build -ldflags="-s -w" -o ht
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+COPY --from=builder /build/ht /usr/local/bin/
+ENTRYPOINT ["ht"]
+```
+
+**GitHub Actions workflow:**
+```yaml
+# .github/workflows/docker.yaml
+name: Docker Build & Push
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/abrekhov/hypertunnel:latest
+            ghcr.io/abrekhov/hypertunnel:${{ github.ref_name }}
+```
+
+**Usage:**
+```bash
+docker pull ghcr.io/abrekhov/hypertunnel:latest
+docker run -it ghcr.io/abrekhov/hypertunnel -f myfile.txt
+```
+
+**Tasks:**
+- [ ] Create Dockerfile (multi-stage build)
+- [ ] Add `.github/workflows/docker.yaml`
+- [ ] Configure GHCR permissions in repo settings
+- [ ] Test image locally before pushing
+- [ ] Add Docker usage to README
+
+#### 3.2 Debian/Ubuntu APT Repository
+
+**Purpose:** `sudo apt install hypertunnel`
+
+**Setup using GitHub Releases + PPA:**
+
+**Option A: Using GoReleaser with nFPM**
+
+Update `.goreleaser.yaml`:
+```yaml
+nfpms:
+  - id: hypertunnel
+    package_name: hypertunnel
+    homepage: https://github.com/abrekhov/hypertunnel
+    maintainer: Anton Brekhov <anton@abrekhov.ru>
+    description: P2P file transfer tool using WebRTC
+    license: Apache 2.0
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      - src: ./ht
+        dst: /usr/local/bin/ht
+        file_info:
+          mode: 0755
+```
+
+**Option B: Launchpad PPA (official Ubuntu)**
+
+1. Create Launchpad account
+2. Generate GPG key for signing
+3. Create debian packaging files:
+```
+debian/
+├── changelog
+├── control
+├── copyright
+├── rules
+└── compat
+```
+
+**GitHub Actions automation:**
+```yaml
+# .github/workflows/deb.yaml
+name: Build DEB Package
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+
+      - name: Install nFPM
+        run: |
+          curl -sfL https://install.goreleaser.com/github.com/goreleaser/nfpm.sh | sh
+
+      - name: Build DEB
+        run: nfpm package --packager deb
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '*.deb'
+```
+
+**Installation Instructions (for README):**
+```bash
+# Download latest .deb from releases
+wget https://github.com/abrekhov/hypertunnel/releases/download/v1.0.0/hypertunnel_1.0.0_amd64.deb
+
+# Install
+sudo dpkg -i hypertunnel_1.0.0_amd64.deb
+
+# Or using APT (if PPA is set up)
+sudo add-apt-repository ppa:abrekhov/hypertunnel
+sudo apt update
+sudo apt install hypertunnel
+```
+
+**Tasks:**
+- [ ] Add nFPM configuration to `.goreleaser.yaml`
+- [ ] Create debian packaging files
+- [ ] Set up Launchpad PPA (optional, for official repos)
+- [ ] Test DEB installation on Ubuntu 22.04, 24.04
+- [ ] Add apt installation to README
+- [ ] Sign packages with GPG
+
+#### 3.3 Homebrew (macOS & Linux)
+
+**Purpose:** `brew install hypertunnel`
+
+**Create Homebrew formula:**
+
+1. Fork https://github.com/Homebrew/homebrew-core
+2. Create formula file: `Formula/h/hypertunnel.rb`
+
+```ruby
+class Hypertunnel < Formula
+  desc "P2P file transfer tool using WebRTC for NAT traversal"
+  homepage "https://github.com/abrekhov/hypertunnel"
+  url "https://github.com/abrekhov/hypertunnel/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "abc123..."
+  license "Apache-2.0"
+
+  depends_on "go" => :build
+
+  def install
+    system "go", "build", *std_go_args(ldflags: "-s -w"), "./main.go"
+  end
+
+  test do
+    assert_match "hypertunnel version", shell_output("#{bin}/ht --version")
+  end
+end
+```
+
+**Or use Homebrew Tap (faster, no review):**
+
+1. Create repo: `homebrew-tap`
+2. Add formula to `Formula/hypertunnel.rb`
+3. Users install with: `brew tap abrekhov/tap && brew install hypertunnel`
+
+**GoReleaser automation:**
+
+Update `.goreleaser.yaml`:
+```yaml
+brews:
+  - name: hypertunnel
+    repository:
+      owner: abrekhov
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/abrekhov/hypertunnel
+    description: P2P file transfer tool using WebRTC
+    license: Apache-2.0
+    install: |
+      bin.install "ht" => "hypertunnel"
+    test: |
+      system "#{bin}/hypertunnel", "--version"
+```
+
+**Tasks:**
+- [ ] Create `abrekhov/homebrew-tap` repository
+- [ ] Add brew configuration to `.goreleaser.yaml`
+- [ ] Set up HOMEBREW_TAP_TOKEN secret in GitHub
+- [ ] Test formula with `brew install --build-from-source`
+- [ ] Submit to homebrew-core (optional, after stable release)
+- [ ] Add brew installation to README
+
+#### 3.4 Arch Linux AUR
+
+**Purpose:** `yay -S hypertunnel` or `paru -S hypertunnel`
+
+**Create PKGBUILD:**
+```bash
+# PKGBUILD
+pkgname=hypertunnel
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="P2P file transfer tool using WebRTC"
+arch=('x86_64' 'aarch64')
+url="https://github.com/abrekhov/hypertunnel"
+license=('Apache')
+depends=()
+makedepends=('go')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  export CGO_ENABLED=0
+  go build -ldflags="-s -w" -o ht
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 ht "$pkgdir/usr/bin/hypertunnel"
+}
+```
+
+**Publish to AUR:**
+1. Create AUR account
+2. Clone AUR repo: `git clone ssh://aur@aur.archlinux.org/hypertunnel.git`
+3. Add PKGBUILD and .SRCINFO
+4. Push to AUR
+
+**Tasks:**
+- [ ] Create PKGBUILD file
+- [ ] Test on Arch Linux VM
+- [ ] Publish to AUR
+- [ ] Add AUR installation to README
+
+#### 3.5 Windows Package Managers
+
+**Scoop:**
+```json
+{
+  "version": "1.0.0",
+  "description": "P2P file transfer tool using WebRTC",
+  "homepage": "https://github.com/abrekhov/hypertunnel",
+  "license": "Apache-2.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/abrekhov/hypertunnel/releases/download/v1.0.0/ht_windows_amd64.exe",
+      "bin": "ht_windows_amd64.exe",
+      "hash": "sha256:..."
+    }
+  }
+}
+```
+
+**Chocolatey:**
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>hypertunnel</id>
+    <version>1.0.0</version>
+    <title>HyperTunnel</title>
+    <authors>Anton Brekhov</authors>
+    <licenseUrl>https://github.com/abrekhov/hypertunnel/blob/main/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/abrekhov/hypertunnel</projectUrl>
+    <description>P2P file transfer tool using WebRTC</description>
+  </metadata>
+</package>
+```
+
+**Tasks:**
+- [ ] Create Scoop manifest
+- [ ] Submit to scoop-extras bucket
+- [ ] Create Chocolatey package
+- [ ] Submit to Chocolatey community feed
+- [ ] Add Windows installation to README
+
+#### 3.6 Documentation & Marketing
+
+**Comprehensive README:**
+- [ ] Add badges (Go version, license, downloads, CI status)
+- [ ] GIF demos of TUI in action (use `vhs` by Charm)
+- [ ] Installation matrix (all platforms)
+- [ ] Quick start guide
+- [ ] Advanced usage examples
+- [ ] FAQ section
+- [ ] Comparison with alternatives (magic-wormhole, croc, etc.)
+
+**GitHub Repository polish:**
+- [ ] Add topics/tags for discoverability
+- [ ] Create issue templates
+- [ ] Add pull request template
+- [ ] Contributing guidelines
+- [ ] Code of conduct
+- [ ] Security policy (for responsible disclosure)
+
+**Estimated Effort:** 2-3 weeks (packaging + testing)
+
+---
+
+### 🚀 Phase 4: Production Ready & Beyond
+
+**Goal:** Polish, optimize, and expand use cases
+
+#### 4.1 Advanced Features
+
+- [ ] **SSH tunnel mode**
+  - Forward SSH connections through WebRTC
+  - Access machines behind NAT without port forwarding
+  - Similar to ngrok but P2P
+
+- [ ] **Port forwarding**
+  - Generic TCP tunnel over WebRTC
+  - Forward any service (HTTP, database, etc.)
+  - Multiple concurrent tunnels
+
+- [ ] **Group transfers**
+  - One sender, multiple receivers
+  - Broadcast file to many peers
+  - Uses WebRTC multicast
+
+- [ ] **Web UI (optional)**
+  - Electron or Wails wrapper
+  - Drag-and-drop file selection
+  - QR code scanning for mobile
+  - System tray integration
+
+#### 4.2 Performance & Optimization
+
+- [ ] **Parallel chunk streaming**
+  - Send multiple chunks concurrently
+  - Utilize full bandwidth
+  - Out-of-order reassembly
+
+- [ ] **Adaptive compression**
+  - Detect file type (text vs binary vs pre-compressed)
+  - Apply compression only when beneficial
+  - Support zstd, brotli, gzip
+
+- [ ] **Connection pooling**
+  - Reuse connection for multiple files
+  - Batch small files into single archive
+  - Reduce handshake overhead
+
+- [ ] **Memory optimization**
+  - Stream large files without loading into RAM
+  - Bounded buffer pools
+  - Profile and optimize allocations
+
+#### 4.3 Ecosystem Integration
+
+- [ ] **Shell completions**
+  - Bash, Zsh, Fish
+  - Auto-generated with Cobra
+
+- [ ] **Man pages**
+  - Generated from CLI help
+  - Installed with packages
+
+- [ ] **systemd service** (optional)
+  - Run as daemon for always-on receive mode
+  - Socket activation
+
+- [ ] **Plugins/Extensions**
+  - Webhook on transfer complete
+  - Custom encryption backends
+  - Alternative signal exchanges (QR, NFC, etc.)
+
+#### 4.4 Internationalization (i18n)
+
+- [ ] Multi-language support
+  - English (default)
+  - Spanish, French, German, Chinese, Russian
+  - Use `github.com/nicksnyder/go-i18n`
+
+**Estimated Effort:** Ongoing (prioritize based on user feedback)
+
+---
+
+## Implementation Priority
+
+### Critical Path (Start Here)
+
+1. **Fix existing bugs** (Phase 1.4 Security)
+   - Confirmation bypass
+   - File overwrite check
+   - **Est:** 1 day
+
+2. **Add basic testing** (Phase 1.5)
+   - Complete unit tests
+   - Simple integration test
+   - **Est:** 3-4 days
+
+3. **Directory transfer** (Phase 1.1)
+   - Essential for usability
+   - **Est:** 1 week
+
+4. **Progress reporting** (Phase 1.2)
+   - Required before TUI
+   - Expose metrics
+   - **Est:** 3 days
+
+5. **Basic TUI** (Phase 2.1-2.2)
+   - Connection + Transfer screens
+   - Use Bubble Tea framework
+   - **Est:** 1.5 weeks
+
+6. **Packaging basics** (Phase 3.1-3.3)
+   - Docker + Homebrew + DEB
+   - **Est:** 1 week
+
+### Total Estimated Timeline
+
+- **Phase 1 (Core):** 3-4 weeks
+- **Phase 2 (TUI):** 2-3 weeks
+- **Phase 3 (Packaging):** 2-3 weeks
+- **Phase 4 (Polish):** Ongoing
+
+**Aggressive goal:** 8-10 weeks for production-ready v1.0 with beautiful TUI and universal packaging
+
+**Realistic goal:** 12-16 weeks with proper testing and iteration
+
+---
+
+## Success Metrics
+
+### v1.0 Release Criteria
+
+- ✅ Robust file + directory transfer
+- ✅ Beautiful TUI with progress bars
+- ✅ One-command install on 5+ platforms
+- ✅ >80% test coverage
+- ✅ Zero critical security issues
+- ✅ Comprehensive documentation
+- ✅ <10 open bugs
+
+### Long-term Goals
+
+- 🎯 10k+ GitHub stars
+- 🎯 Featured in Awesome Go lists
+- 🎯 >100k downloads across all platforms
+- 🎯 Community contributions (PRs, issues)
+- 🎯 Translations in 5+ languages
+
+---
+
+## Getting Started
+
+**For AI Assistants:**
+
+When implementing features from this roadmap:
+
+1. **Check phase dependencies** - Implement in order when possible
+2. **Update this document** - Mark items complete, adjust estimates
+3. **Write tests first** - TDD for new features (Phase 1.5 onwards)
+4. **Keep it simple** - Don't over-engineer, iterate based on usage
+5. **Document as you go** - Update README and code comments
+6. **Use TodoWrite tool** - Track progress on multi-step features
+
+**Next immediate steps:**
+1. Fix confirmation bypass bug (`pkg/datachannel/handlers.go:44`)
+2. Fix file overwrite check (`pkg/datachannel/handlers.go:18-21`)
+3. Complete unit tests (`pkg/datachannel/datachannel_test.go`)
+4. Add progress tracking to file transfer
+5. Start Bubble Tea TUI implementation
 
 ---
 
