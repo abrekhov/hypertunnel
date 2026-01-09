@@ -1,9 +1,9 @@
+//go:build integration
+
 /*
  *   Copyright © 2021-2026 Anton Brekhov <anton@abrekhov.ru>
  *   All rights reserved.
  */
-
-//go:build integration
 
 package main
 

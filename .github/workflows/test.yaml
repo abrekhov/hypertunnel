@@ -96,10 +96,15 @@ jobs:
           cache: true
 
       - name: Build
-        run: go build -v -o ht ./main.go
+        run: go build -v ./main.go
 
-      - name: Verify binary
+      - name: Verify binary (Unix)
+        if: runner.os != 'Windows'
         run: ./ht --version || ./ht --help
+
+      - name: Verify binary (Windows)
+        if: runner.os == 'Windows'
+        run: .\ht.exe --version || .\ht.exe --help
 
   integration:
     name: Integration Tests
@@ -143,7 +148,8 @@ jobs:
           THRESHOLD=70
           echo "Current coverage: ${COVERAGE}%"
           echo "Required threshold: ${THRESHOLD}%"
-          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+          # Use awk for comparison instead of bc (which may not be installed)
+          if awk "BEGIN {exit !($COVERAGE < $THRESHOLD)}"; then
             echo "Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             echo "⚠️  Coverage warning: Please add more tests"
             # Don't fail for now, just warn

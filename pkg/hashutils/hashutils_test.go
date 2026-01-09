@@ -40,9 +40,9 @@ func TestFromKeyToAESKey(t *testing.T) {
 	})
 
 	t.Run("unicode characters are handled correctly", func(t *testing.T) {
-		key1 := FromKeyToAESKey("パスワード") // Japanese
-		key2 := FromKeyToAESKey("пароль")     // Russian
-		key3 := FromKeyToAESKey("🔐🔑")        // Emojis
+		key1 := FromKeyToAESKey("パスワード")  // Japanese
+		key2 := FromKeyToAESKey("пароль") // Russian
+		key3 := FromKeyToAESKey("🔐🔑")     // Emojis
 
 		assert.Len(t, key1, 32)
 		assert.Len(t, key2, 32)
