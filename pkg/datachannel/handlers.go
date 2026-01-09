@@ -16,7 +16,8 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 	log.Debugf("DataChannel Opts: %#v\n", channel)
 	_, err := os.Stat(channel.Label())
-	if os.IsExist(err) {
+	if err == nil {
+		// File exists
 		log.Panicln("File with same name exists in current directory.")
 	}
 	c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
@@ -41,7 +42,6 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 }
 
 func askForConfirmation(s string, in io.Reader) bool {
-	return true
 	tries := 3
 	reader := bufio.NewReader(in)
 	for ; tries > 0; tries-- {
