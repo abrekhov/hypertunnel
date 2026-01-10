@@ -111,8 +111,9 @@ func (m *Metadata) Validate() error {
 	}
 
 	// Check for path traversal attacks
+	// Note: filepath.IsAbs is OS-dependent, so we explicitly check for Unix-style absolute paths
 	clean := filepath.Clean(m.Filename)
-	if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) || strings.Contains(m.Filename, "..") {
+	if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) || strings.Contains(m.Filename, "..") || strings.HasPrefix(m.Filename, "/") {
 		return fmt.Errorf("invalid filename: path traversal not allowed")
 	}
 
