@@ -39,6 +39,7 @@ var (
 	isOffer    bool
 	file       string
 	autoAccept bool
+	overwrite  bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -73,7 +74,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hypertunnel.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
-	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming files and overwrites")
+	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming files")
+	rootCmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite existing files or directories")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -101,6 +103,7 @@ func initConfig() {
 
 func Connection(cmd *cobra.Command, args []string) {
 	datachannel.AutoAccept = autoAccept
+	datachannel.OverwriteExisting = overwrite
 
 	// Who receiver and who sender?
 	var isDirectory bool
