@@ -55,7 +55,7 @@ func init() {
 }
 
 func EncryptFile(cmd *cobra.Command, args []string) {
-	// KEY Proccessing
+	// KEY Processing
 	if keyphrase == "" {
 		logrus.Fatalln("Keyphrase is empty!")
 	}
