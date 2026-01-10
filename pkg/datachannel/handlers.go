@@ -30,28 +30,48 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 
 	// Check if target already exists
 	_, err := os.Stat(targetPath)
-	if err == nil {
-		if !AutoAccept {
-			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
-				map[bool]string{true: "Directory", false: "File"}[isArchive],
-				targetPath), os.Stdin)
-			if !overwrite {
-				fmt.Println("OK! Ignoring...")
-				return
-			}
-		}
-	} else if !os.IsNotExist(err) {
+	targetExists := err == nil
+	if err != nil && !os.IsNotExist(err) {
 		log.Errorf("Failed to check existing %s: %v", targetPath, err)
 		return
 	}
 
-	if !AutoAccept {
-		c := askForConfirmation(fmt.Sprintf("Do you want to receive %s %s?",
+	if AutoAccept {
+		if targetExists {
+			log.Infof("Auto-accept enabled: overwriting existing %s %s",
+				map[bool]string{true: "directory", false: "file"}[isArchive],
+				targetPath)
+		} else {
+			log.Infof("Auto-accept enabled: accepting incoming %s %s",
+				map[bool]string{true: "directory", false: "file"}[isArchive],
+				targetPath)
+		}
+	} else {
+		log.Infof("Prompting to accept incoming %s %s",
+			map[bool]string{true: "directory", false: "file"}[isArchive],
+			targetPath)
+		accept := askForConfirmation(fmt.Sprintf("Do you want to receive %s %s?",
 			map[bool]string{true: "directory", false: "file"}[isArchive],
 			targetPath), os.Stdin)
-		if !c {
+		if !accept {
+			log.Infoln("Transfer declined; ignoring incoming data channel.")
 			fmt.Println("OK! Ignoring...")
 			return
+		}
+		log.Infoln("Transfer accepted; starting receive.")
+		if targetExists {
+			log.Infof("Existing %s detected: prompting for overwrite", targetPath)
+			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
+				map[bool]string{true: "Directory", false: "File"}[isArchive],
+				targetPath), os.Stdin)
+			if !overwrite {
+				log.Infoln("Overwrite declined; ignoring incoming transfer.")
+				fmt.Println("OK! Ignoring...")
+				return
+			}
+			log.Infoln("Overwrite confirmed; proceeding with transfer.")
+		} else {
+			log.Debugf("No existing target at %s", targetPath)
 		}
 	}
 
