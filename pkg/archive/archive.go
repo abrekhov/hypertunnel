@@ -307,6 +307,13 @@ func extractDir(targetPath string, header *tar.Header, opts *Options) error {
 		return fmt.Errorf("create dir error: %w", err)
 	}
 
+	if opts.PreservePermissions {
+		mode := header.FileInfo().Mode().Perm()
+		if err := os.Chmod(targetPath, mode); err != nil {
+			return fmt.Errorf("chmod error: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -333,6 +340,10 @@ func extractFile(r io.Reader, targetPath string, header *tar.Header, opts *Optio
 
 	// Preserve modification time
 	if opts.PreservePermissions {
+		mode := header.FileInfo().Mode().Perm()
+		if err := os.Chmod(targetPath, mode); err != nil {
+			return fmt.Errorf("chmod error: %w", err)
+		}
 		if err := os.Chtimes(targetPath, header.AccessTime, header.ModTime); err != nil {
 			// Non-fatal, just log
 			return nil
@@ -376,7 +387,7 @@ func isValidPath(path string) bool {
 	if strings.Contains(path, "..") {
 		return false
 	}
-	if filepath.IsAbs(path) {
+	if filepath.IsAbs(path) || strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
 		return false
 	}
 	return true
