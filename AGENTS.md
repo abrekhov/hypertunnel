@@ -1675,6 +1675,9 @@ go mod download
 # Format code
 go fmt ./...
 
+# Run linting
+golangci-lint run ./...
+
 # Run tests (when implemented)
 go test ./...
 
