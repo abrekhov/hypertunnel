@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
+	"github.com/abrekhov/hypertunnel/pkg/transfer"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -218,6 +219,9 @@ func Connection(cmd *cobra.Command, args []string) {
 			cobra.CheckErr(err)
 			r := bufio.NewReader(fd)
 			chunk := make([]byte, 65534)
+			progress := transfer.NewProgress(info.Size())
+			logInterval := 2 * time.Second
+			nextLog := time.Now().Add(logInterval)
 			for {
 				nbytes, err := r.Read(chunk)
 				log.Debugln("nbytes:", nbytes)
@@ -228,6 +232,24 @@ func Connection(cmd *cobra.Command, args []string) {
 				err = channel.Send(chunk[:nbytes])
 				if err != nil {
 					log.Debugln(err)
+				}
+				progress.Add(nbytes)
+				now := time.Now()
+				if now.After(nextLog) {
+					metrics := progress.Snapshot(now)
+					percentTransferred := 0.0
+					if metrics.TotalBytes > 0 {
+						percentTransferred = float64(metrics.TransferredBytes) / float64(metrics.TotalBytes) * 100
+					}
+					log.WithFields(log.Fields{
+						"sent_bytes":          metrics.TransferredBytes,
+						"total_bytes":         metrics.TotalBytes,
+						"bytes_per_second":    metrics.BytesPerSecond,
+						"eta":                 metrics.ETA.String(),
+						"elapsed":             metrics.Elapsed.String(),
+						"percent_transferred": percentTransferred,
+					}).Infoln("Transfer progress (send)")
+					nextLog = now.Add(logInterval)
 				}
 			}
 			// err = fd.Close()

@@ -6,7 +6,9 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/abrekhov/hypertunnel/pkg/transfer"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -29,11 +31,25 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	var fd *os.File
 	fd, err = os.Create(channel.Label())
 	cobra.CheckErr(err)
+	progress := transfer.NewProgress(0)
+	logInterval := 2 * time.Second
+	nextLog := time.Now().Add(logInterval)
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
 		if _, err := fd.Write(msg.Data); err != nil {
 			log.Errorf("Failed to write data: %v", err)
+		}
+		progress.Add(len(msg.Data))
+		now := time.Now()
+		if now.After(nextLog) {
+			metrics := progress.Snapshot(now)
+			log.WithFields(log.Fields{
+				"received_bytes":   metrics.TransferredBytes,
+				"bytes_per_second": metrics.BytesPerSecond,
+				"elapsed":          metrics.Elapsed.String(),
+			}).Infoln("Transfer progress (receive)")
+			nextLog = now.Add(logInterval)
 		}
 	})
 	channel.OnClose(func() {
