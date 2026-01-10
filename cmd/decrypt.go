@@ -19,7 +19,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"io"
-	"log"
 	"os"
 
 	"github.com/abrekhov/hypertunnel/pkg/hashutils"
@@ -50,7 +49,7 @@ func init() {
 }
 
 func decryptFile(cmd *cobra.Command, args []string) {
-	// KEY Proccessing
+	// KEY Processing
 	if keyphrase == "" {
 		logrus.Fatalln("Keyphrase is empty!")
 	}
@@ -71,7 +70,8 @@ func decryptFile(cmd *cobra.Command, args []string) {
 
 	fi, err := infile.Stat()
 	if err != nil {
-		log.Fatal(err)
+		logrus.WithError(err).Error("Failed to stat input file")
+		return
 	}
 
 	// Output file

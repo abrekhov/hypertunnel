@@ -37,7 +37,7 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 		}
 	})
 	channel.OnClose(func() {
-		fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
+		fmt.Printf("Data channel '%s'-'%d' closed. Transferring ended...\n", channel.Label(), channel.ID())
 		if err := fd.Close(); err != nil {
 			log.Errorf("Failed to close file: %v", err)
 		}

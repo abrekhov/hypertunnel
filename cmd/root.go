@@ -236,7 +236,7 @@ func Connection(cmd *cobra.Command, args []string) {
 		})
 		channel.OnClose(func() {
 			fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
-			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
+			fmt.Printf("Chunks from DataChannel '%s' transferred.\n", channel.Label())
 			os.Exit(0)
 		})
 		defer func() {
