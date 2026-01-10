@@ -31,11 +31,13 @@ const MetadataPrefix = "HT_META:"
 
 // Metadata contains information about a file being transferred.
 type Metadata struct {
-	ModTime  time.Time   `json:"modtime,omitempty"` // Modification time
-	Filename string      `json:"filename"`          // Name of the file (without path)
-	Checksum string      `json:"checksum,omitempty"` // SHA-256 checksum (hex)
-	Size     int64       `json:"size"`              // Size in bytes
-	Mode     os.FileMode `json:"mode,omitempty"`    // File permissions
+	ModTime     time.Time   `json:"modtime,omitempty"`     // Modification time
+	Filename    string      `json:"filename"`              // Name of the file (without path)
+	Checksum    string      `json:"checksum,omitempty"`    // SHA-256 checksum (hex)
+	Size        int64       `json:"size"`                  // Size in bytes
+	Mode        os.FileMode `json:"mode,omitempty"`        // File permissions
+	IsDirectory bool        `json:"is_directory,omitempty"` // True if this is a directory transfer
+	IsArchive   bool        `json:"is_archive,omitempty"`   // True if this is an archived directory
 }
 
 // NewMetadata creates a new Metadata with the given filename and size.
@@ -63,6 +65,38 @@ func MetadataFromFile(path string) (*Metadata, error) {
 		Mode:     info.Mode(),
 		ModTime:  info.ModTime(),
 	}, nil
+}
+
+// MetadataFromPath creates Metadata from a file or directory path.
+// For directories, it creates metadata indicating a directory transfer.
+// The actual size should be set later when the archive is created.
+func MetadataFromPath(path string) (*Metadata, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	m := &Metadata{
+		Filename:    filepath.Base(path),
+		Mode:        info.Mode(),
+		ModTime:     info.ModTime(),
+		IsDirectory: info.IsDir(),
+	}
+
+	if info.IsDir() {
+		// For directories, we'll create an archive
+		// Size will be 0 initially and updated when archive is created
+		m.Size = 0
+		m.IsArchive = true
+		// Append .tar.gz to the filename to indicate it's archived
+		if !strings.HasSuffix(m.Filename, ".tar.gz") {
+			m.Filename += ".tar.gz"
+		}
+	} else {
+		m.Size = info.Size()
+	}
+
+	return m, nil
 }
 
 // MetadataFromFileWithChecksum creates Metadata from an existing file,
