@@ -18,8 +18,8 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
-	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
 	webrtc "github.com/pion/webrtc/v3"
@@ -219,15 +219,29 @@ func Connection(cmd *cobra.Command, args []string) {
 			r := bufio.NewReader(fd)
 			chunk := make([]byte, 65534)
 			for {
-				nbytes, err := r.Read(chunk)
+				nbytes, readErr := r.Read(chunk)
 				log.Debugln("nbytes:", nbytes)
-				if err != nil {
-					<-time.After(time.Second * 30)
+				if nbytes > 0 {
+					if sendErr := channel.Send(chunk[:nbytes]); sendErr != nil {
+						log.Debugln(sendErr)
+						if err := channel.Close(); err != nil {
+							log.Debugln(err)
+						}
+						break
+					}
+				}
+				if readErr == io.EOF {
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
 					break
 				}
-				err = channel.Send(chunk[:nbytes])
-				if err != nil {
-					log.Debugln(err)
+				if readErr != nil {
+					log.Errorf("Failed reading file: %v", readErr)
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
+					break
 				}
 			}
 			// err = fd.Close()
