@@ -86,7 +86,7 @@ func CreateTarGz(w io.Writer, srcPath string, opts *Options) (int64, error) {
 
 	// If source is a single file, just add it to the archive
 	if !srcInfo.IsDir() {
-		return addFileToTar(tarWriter, srcPath, filepath.Base(srcPath))
+		return addFileToTar(tarWriter, srcPath, filepath.Base(srcPath), opts)
 	}
 
 	// Walk the directory tree
@@ -132,10 +132,10 @@ func CreateTarGz(w io.Writer, srcPath string, opts *Options) (int64, error) {
 
 		// Add to archive
 		if info.IsDir() {
-			return addDirToTar(tarWriter, relPath, info)
+			return addDirToTar(tarWriter, relPath, info, opts)
 		}
 
-		n, err := addFileToTar(tarWriter, path, relPath)
+		n, err := addFileToTar(tarWriter, path, relPath, opts)
 		bytesWritten += n
 		return err
 	})
@@ -222,7 +222,7 @@ func ExtractTarGz(r io.Reader, destPath string, opts *Options) error {
 }
 
 // addFileToTar adds a single file to the tar archive.
-func addFileToTar(tw *tar.Writer, srcPath, archivePath string) (int64, error) {
+func addFileToTar(tw *tar.Writer, srcPath, archivePath string, opts *Options) (int64, error) {
 	file, err := os.Open(srcPath) // #nosec G304 - srcPath is from filepath.Walk, validated earlier
 	if err != nil {
 		return 0, fmt.Errorf("open file error: %w", err)
@@ -243,6 +243,9 @@ func addFileToTar(tw *tar.Writer, srcPath, archivePath string) (int64, error) {
 		return 0, fmt.Errorf("create header error: %w", err)
 	}
 	header.Name = filepath.ToSlash(archivePath)
+	if opts != nil && opts.PreservePermissions {
+		header.Mode = int64(info.Mode().Perm())
+	}
 
 	if err := tw.WriteHeader(header); err != nil {
 		return 0, fmt.Errorf("write header error: %w", err)
@@ -257,12 +260,15 @@ func addFileToTar(tw *tar.Writer, srcPath, archivePath string) (int64, error) {
 }
 
 // addDirToTar adds a directory entry to the tar archive.
-func addDirToTar(tw *tar.Writer, archivePath string, info os.FileInfo) error {
+func addDirToTar(tw *tar.Writer, archivePath string, info os.FileInfo, opts *Options) error {
 	header, err := tar.FileInfoHeader(info, "")
 	if err != nil {
 		return fmt.Errorf("create dir header error: %w", err)
 	}
 	header.Name = filepath.ToSlash(archivePath) + "/"
+	if opts != nil && opts.PreservePermissions {
+		header.Mode = int64(info.Mode().Perm())
+	}
 
 	if err := tw.WriteHeader(header); err != nil {
 		return fmt.Errorf("write dir header error: %w", err)
