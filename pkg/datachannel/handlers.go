@@ -17,13 +17,23 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	log.Debugf("DataChannel Opts: %#v\n", channel)
 	_, err := os.Stat(channel.Label())
 	if err == nil {
-		// File exists
-		log.Panicln("File with same name exists in current directory.")
-	}
-	c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
-	if !c {
-		fmt.Println("OK! Ignoring...")
+		if !AutoAccept {
+			overwrite := askForConfirmation(fmt.Sprintf("File %s exists. Overwrite?", channel.Label()), os.Stdin)
+			if !overwrite {
+				fmt.Println("OK! Ignoring...")
+				return
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		log.Errorf("Failed to check existing file %s: %v", channel.Label(), err)
 		return
+	}
+	if !AutoAccept {
+		c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
+		if !c {
+			fmt.Println("OK! Ignoring...")
+			return
+		}
 	}
 
 	var fd *os.File
@@ -44,6 +54,8 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 		os.Exit(0)
 	})
 }
+
+var AutoAccept bool
 
 func askForConfirmation(s string, in io.Reader) bool {
 	tries := 3
