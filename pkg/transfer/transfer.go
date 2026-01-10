@@ -62,12 +62,12 @@ func (s State) String() string {
 
 // Status contains the full status of an ongoing transfer.
 type Status struct {
+	LastUpdate   time.Time
 	Error        error
 	Metadata     *Metadata
 	Progress     *ProgressMetrics
 	ExpectedSum  string
 	ActualSum    string
-	LastUpdate   time.Time
 	State        State
 	VerifyResult bool
 }

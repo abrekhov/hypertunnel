@@ -28,16 +28,16 @@ import (
 
 func TestState_String(t *testing.T) {
 	tests := []struct {
-		state    State
 		expected string
+		state    State
 	}{
-		{StateIdle, "idle"},
-		{StateMetadata, "exchanging metadata"},
-		{StateTransferring, "transferring"},
-		{StateVerifying, "verifying"},
-		{StateComplete, "complete"},
-		{StateFailed, "failed"},
-		{State(99), "unknown"},
+		{"idle", StateIdle},
+		{"exchanging metadata", StateMetadata},
+		{"transferring", StateTransferring},
+		{"verifying", StateVerifying},
+		{"complete", StateComplete},
+		{"failed", StateFailed},
+		{"unknown", State(99)},
 	}
 
 	for _, tt := range tests {

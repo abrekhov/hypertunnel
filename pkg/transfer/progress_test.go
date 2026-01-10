@@ -217,14 +217,14 @@ func TestProgress_Metrics(t *testing.T) {
 func TestProgress_FormatSpeed(t *testing.T) {
 	tests := []struct {
 		name           string
-		bytesPerSecond float64
 		expected       string
+		bytesPerSecond float64
 	}{
-		{"bytes per second", 500, "500 B/s"},
-		{"kilobytes per second", 1500, "1.5 KB/s"},
-		{"megabytes per second", 1500000, "1.5 MB/s"},
-		{"gigabytes per second", 1500000000, "1.5 GB/s"},
-		{"zero speed", 0, "0 B/s"},
+		{"bytes per second", "500 B/s", 500},
+		{"kilobytes per second", "1.5 KB/s", 1500},
+		{"megabytes per second", "1.5 MB/s", 1500000},
+		{"gigabytes per second", "1.5 GB/s", 1500000000},
+		{"zero speed", "0 B/s", 0},
 	}
 
 	for _, tt := range tests {
@@ -238,15 +238,15 @@ func TestProgress_FormatSpeed(t *testing.T) {
 func TestProgress_FormatSize(t *testing.T) {
 	tests := []struct {
 		name     string
-		bytes    int64
 		expected string
+		bytes    int64
 	}{
-		{"bytes", 500, "500 B"},
-		{"kilobytes", 1500, "1.5 KB"},
-		{"megabytes", 1500000, "1.5 MB"},
-		{"gigabytes", 1500000000, "1.5 GB"},
-		{"terabytes", 1500000000000, "1.5 TB"},
-		{"zero bytes", 0, "0 B"},
+		{"bytes", "500 B", 500},
+		{"kilobytes", "1.5 KB", 1500},
+		{"megabytes", "1.5 MB", 1500000},
+		{"gigabytes", "1.5 GB", 1500000000},
+		{"terabytes", "1.5 TB", 1500000000000},
+		{"zero bytes", "0 B", 0},
 	}
 
 	for _, tt := range tests {
@@ -260,14 +260,14 @@ func TestProgress_FormatSize(t *testing.T) {
 func TestProgress_FormatDuration(t *testing.T) {
 	tests := []struct {
 		name     string
-		duration time.Duration
 		expected string
+		duration time.Duration
 	}{
-		{"seconds only", 45 * time.Second, "00:00:45"},
-		{"minutes and seconds", 5*time.Minute + 30*time.Second, "00:05:30"},
-		{"hours minutes seconds", 2*time.Hour + 30*time.Minute + 45*time.Second, "02:30:45"},
-		{"zero duration", 0, "00:00:00"},
-		{"sub-second", 500 * time.Millisecond, "00:00:00"},
+		{"seconds only", "00:00:45", 45 * time.Second},
+		{"minutes and seconds", "00:05:30", 5*time.Minute + 30*time.Second},
+		{"hours minutes seconds", "02:30:45", 2*time.Hour + 30*time.Minute + 45*time.Second},
+		{"zero duration", "00:00:00", 0},
+		{"sub-second", "00:00:00", 500 * time.Millisecond},
 	}
 
 	for _, tt := range tests {
