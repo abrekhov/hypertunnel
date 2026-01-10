@@ -16,7 +16,8 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 	log.Debugf("DataChannel Opts: %#v\n", channel)
 	_, err := os.Stat(channel.Label())
-	if os.IsExist(err) {
+	if err == nil {
+		// File exists
 		log.Panicln("File with same name exists in current directory.")
 	}
 	c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
@@ -31,17 +32,20 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
-		fd.Write(msg.Data)
+		if _, err := fd.Write(msg.Data); err != nil {
+			log.Errorf("Failed to write data: %v", err)
+		}
 	})
 	channel.OnClose(func() {
 		fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
-		fd.Close()
+		if err := fd.Close(); err != nil {
+			log.Errorf("Failed to close file: %v", err)
+		}
 		os.Exit(0)
 	})
 }
 
 func askForConfirmation(s string, in io.Reader) bool {
-	return true
 	tries := 3
 	reader := bufio.NewReader(in)
 	for ; tries > 0; tries-- {
