@@ -1,8 +1,6 @@
 # .golangci.yaml
 # golangci-lint configuration for HyperTunnel
 
-version: 2
-
 run:
   timeout: 5m
   tests: true
@@ -25,11 +23,6 @@ linters:
     - copyloopvar   # Check for pointers to enclosing loop variables
     - gocritic      # Opinionated Go source code linter
     - revive        # Fast, configurable, extensible, flexible, and beautiful linter
-
-formatters:
-  enable:
-    - gofmt         # Check formatting
-    - goimports     # Check imports
 
 linters-settings:
   govet:
