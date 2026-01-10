@@ -7,6 +7,8 @@ package datachannel
 import (
 	"encoding/base64"
 	"encoding/json"
+	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/pion/webrtc/v3"
@@ -245,4 +247,61 @@ func BenchmarkEncodeDecodeRoundTrip(b *testing.B) {
 		var decoded Signal
 		Decode(encoded, &decoded)
 	}
+}
+
+func TestEncode_InvalidObjectExits(t *testing.T) {
+	runHelperProcess(t, "encode-invalid")
+}
+
+func TestDecode_InvalidBase64Exits(t *testing.T) {
+	runHelperProcess(t, "decode-invalid-base64")
+}
+
+func TestDecode_InvalidJSONExits(t *testing.T) {
+	runHelperProcess(t, "decode-invalid-json")
+}
+
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	mode := ""
+	for i, arg := range os.Args {
+		if arg == "--" && i+1 < len(os.Args) {
+			mode = os.Args[i+1]
+			break
+		}
+	}
+
+	switch mode {
+	case "encode-invalid":
+		Encode(make(chan int))
+	case "decode-invalid-base64":
+		Decode("not-base64!!", &Signal{})
+	case "decode-invalid-json":
+		Decode(base64.StdEncoding.EncodeToString([]byte("{bad json")), &Signal{})
+	}
+
+	os.Exit(0)
+}
+
+func runHelperProcess(t *testing.T, mode string) {
+	t.Helper()
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess", "--", mode)
+	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+	err := cmd.Run()
+	if err == nil {
+		t.Fatalf("expected process to exit with error for mode %s", mode)
+	}
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() == 0 {
+			t.Fatalf("expected non-zero exit code for mode %s", mode)
+		}
+		return
+	}
+
+	t.Fatalf("unexpected error running helper process for mode %s: %v", mode, err)
 }
