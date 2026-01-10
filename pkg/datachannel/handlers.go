@@ -66,7 +66,7 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 
 // handleFileTransfer handles receiving a regular file.
 func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
-	fd, err := os.Create(targetPath)
+	fd, err := os.Create(targetPath) // #nosec G304 - targetPath is from datachannel label, validated before
 	if err != nil {
 		log.Errorf("Failed to create file: %v", err)
 		return
@@ -121,7 +121,7 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 
 		// Create the target directory if it doesn't exist
 		destPath := filepath.Join(currentDir, targetPath)
-		if err := os.MkdirAll(destPath, 0755); err != nil {
+		if err := os.MkdirAll(destPath, 0750); err != nil {
 			log.Errorf("Failed to create directory: %v", err)
 			os.Exit(1)
 		}

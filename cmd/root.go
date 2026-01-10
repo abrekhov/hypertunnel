@@ -213,7 +213,7 @@ func Connection(cmd *cobra.Command, args []string) {
 		label := info.Name()
 		if isDirectory {
 			// For directories, append .tar.gz to indicate it's archived
-			label = label + ".tar.gz"
+			label += ".tar.gz"
 		}
 
 		dcParams := &webrtc.DataChannelParameters{
@@ -246,7 +246,7 @@ func Connection(cmd *cobra.Command, args []string) {
 				r = &buf
 			} else {
 				// Regular file transfer
-				fd, err := os.Open(file)
+				fd, err := os.Open(file) // #nosec G304 - file path is from user-provided flag
 				if err != nil {
 					log.Errorf("Failed to open file: %v", err)
 					if err := channel.Close(); err != nil {
@@ -254,7 +254,11 @@ func Connection(cmd *cobra.Command, args []string) {
 					}
 					return
 				}
-				defer fd.Close()
+				defer func() {
+					if closeErr := fd.Close(); closeErr != nil {
+						log.Errorf("Failed to close file: %v", closeErr)
+					}
+				}()
 				r = fd
 			}
 

@@ -30,7 +30,7 @@ func TestCreateAndExtractTarGz(t *testing.T) {
 	// Create a temporary source directory
 	srcDir, err := os.MkdirTemp("", "hypertunnel-test-src-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
+	defer func() { _ = os.RemoveAll(srcDir) }()
 
 	// Create test files and directories
 	testFiles := map[string]string{
@@ -43,8 +43,8 @@ func TestCreateAndExtractTarGz(t *testing.T) {
 
 	for path, content := range testFiles {
 		fullPath := filepath.Join(srcDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750))           // #nosec G301 - test file
+		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0600)) // #nosec G306 - test file
 	}
 
 	// Create archive
@@ -58,7 +58,7 @@ func TestCreateAndExtractTarGz(t *testing.T) {
 	// Extract archive to new directory
 	destDir, err := os.MkdirTemp("", "hypertunnel-test-dest-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(destDir)
+	defer func() { _ = os.RemoveAll(destDir) }()
 
 	err = ExtractTarGz(&buf, destDir, opts)
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestCreateAndExtractTarGz(t *testing.T) {
 	// Verify extracted files
 	for path, expectedContent := range testFiles {
 		fullPath := filepath.Join(destDir, path)
-		content, err := os.ReadFile(fullPath)
+		content, err := os.ReadFile(fullPath) // #nosec G304 - test file
 		require.NoError(t, err)
 		assert.Equal(t, expectedContent, string(content), "File content mismatch: %s", path)
 	}
@@ -76,12 +76,12 @@ func TestCreateTarGzSingleFile(t *testing.T) {
 	// Create a temporary file
 	tmpFile, err := os.CreateTemp("", "hypertunnel-test-file-*.txt")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	testContent := "Single file content"
 	_, err = tmpFile.WriteString(testContent)
 	require.NoError(t, err)
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Create archive
 	var buf bytes.Buffer
@@ -93,14 +93,14 @@ func TestCreateTarGzSingleFile(t *testing.T) {
 	// Extract archive
 	destDir, err := os.MkdirTemp("", "hypertunnel-test-dest-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(destDir)
+	defer func() { _ = os.RemoveAll(destDir) }()
 
 	err = ExtractTarGz(&buf, destDir, opts)
 	require.NoError(t, err)
 
 	// Verify extracted file
 	extractedPath := filepath.Join(destDir, filepath.Base(tmpFile.Name()))
-	content, err := os.ReadFile(extractedPath)
+	content, err := os.ReadFile(extractedPath) // #nosec G304 - test file
 	require.NoError(t, err)
 	assert.Equal(t, testContent, string(content))
 }
@@ -109,7 +109,7 @@ func TestExcludePatterns(t *testing.T) {
 	// Create a temporary source directory
 	srcDir, err := os.MkdirTemp("", "hypertunnel-test-exclude-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
+	defer func() { _ = os.RemoveAll(srcDir) }()
 
 	// Create test files
 	testFiles := []string{
@@ -121,8 +121,8 @@ func TestExcludePatterns(t *testing.T) {
 
 	for _, path := range testFiles {
 		fullPath := filepath.Join(srcDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-		require.NoError(t, os.WriteFile(fullPath, []byte("content"), 0644))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750)) // #nosec G301 - test file
+		require.NoError(t, os.WriteFile(fullPath, []byte("content"), 0600)) // #nosec G306 - test file
 	}
 
 	// Create archive with exclude patterns
@@ -135,7 +135,7 @@ func TestExcludePatterns(t *testing.T) {
 	// Extract archive
 	destDir, err := os.MkdirTemp("", "hypertunnel-test-dest-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(destDir)
+	defer func() { _ = os.RemoveAll(destDir) }()
 
 	err = ExtractTarGz(&buf, destDir, opts)
 	require.NoError(t, err)
@@ -180,12 +180,12 @@ func TestIsDirectory(t *testing.T) {
 	// Create temporary directory
 	tmpDir, err := os.MkdirTemp("", "hypertunnel-test-dir-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create temporary file
 	tmpFile, err := os.CreateTemp(tmpDir, "test-*.txt")
 	require.NoError(t, err)
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Test directory
 	isDir, err := IsDirectory(tmpDir)
@@ -230,11 +230,11 @@ func TestPreservePermissions(t *testing.T) {
 	// Create a temporary source directory
 	srcDir, err := os.MkdirTemp("", "hypertunnel-test-perms-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
+	defer func() { _ = os.RemoveAll(srcDir) }()
 
 	// Create a file with specific permissions
 	testFile := filepath.Join(srcDir, "executable.sh")
-	err = os.WriteFile(testFile, []byte("#!/bin/bash\necho test"), 0755)
+	err = os.WriteFile(testFile, []byte("#!/bin/bash\necho test"), 0700) // #nosec G306 - test file needs exec perms
 	require.NoError(t, err)
 
 	// Create archive with permission preservation
@@ -247,7 +247,7 @@ func TestPreservePermissions(t *testing.T) {
 	// Extract archive
 	destDir, err := os.MkdirTemp("", "hypertunnel-test-dest-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(destDir)
+	defer func() { _ = os.RemoveAll(destDir) }()
 
 	err = ExtractTarGz(&buf, destDir, opts)
 	require.NoError(t, err)
@@ -256,5 +256,5 @@ func TestPreservePermissions(t *testing.T) {
 	extractedFile := filepath.Join(destDir, "executable.sh")
 	info, err := os.Stat(extractedFile)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0755), info.Mode().Perm())
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
 }

@@ -90,7 +90,7 @@ func MetadataFromPath(path string) (*Metadata, error) {
 		m.IsArchive = true
 		// Append .tar.gz to the filename to indicate it's archived
 		if !strings.HasSuffix(m.Filename, ".tar.gz") {
-			m.Filename = m.Filename + ".tar.gz"
+			m.Filename += ".tar.gz"
 		}
 	} else {
 		m.Size = info.Size()

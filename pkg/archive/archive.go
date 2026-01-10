@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package archive provides tar.gz compression and extraction utilities for directory transfers.
 package archive
 
 import (
@@ -66,11 +67,19 @@ func CreateTarGz(w io.Writer, srcPath string, opts *Options) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("gzip writer error: %w", err)
 	}
-	defer gzWriter.Close()
+	defer func() {
+		if closeErr := gzWriter.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("gzip close error: %w", closeErr)
+		}
+	}()
 
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
+	defer func() {
+		if closeErr := tarWriter.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("tar close error: %w", closeErr)
+		}
+	}()
 
 	// Track bytes written
 	var bytesWritten int64
@@ -157,7 +166,11 @@ func ExtractTarGz(r io.Reader, destPath string, opts *Options) error {
 	if err != nil {
 		return fmt.Errorf("gzip reader error: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() {
+		if closeErr := gzReader.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("gzip reader close error: %w", closeErr)
+		}
+	}()
 
 	// Create tar reader
 	tarReader := tar.NewReader(gzReader)
@@ -178,10 +191,10 @@ func ExtractTarGz(r io.Reader, destPath string, opts *Options) error {
 		}
 
 		// Construct target path
-		targetPath := filepath.Join(destPath, header.Name)
+		targetPath := filepath.Join(destPath, header.Name) // #nosec G305 - header.Name validated by isValidPath
 
 		// Create parent directories if needed
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0750); err != nil {
 			return fmt.Errorf("mkdir error: %w", err)
 		}
 
@@ -210,11 +223,15 @@ func ExtractTarGz(r io.Reader, destPath string, opts *Options) error {
 
 // addFileToTar adds a single file to the tar archive.
 func addFileToTar(tw *tar.Writer, srcPath, archivePath string) (int64, error) {
-	file, err := os.Open(srcPath)
+	file, err := os.Open(srcPath) // #nosec G304 - srcPath is from filepath.Walk, validated earlier
 	if err != nil {
 		return 0, fmt.Errorf("open file error: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("file close error: %w", closeErr)
+		}
+	}()
 
 	info, err := file.Stat()
 	if err != nil {
@@ -281,7 +298,7 @@ func addSymlinkToTar(tw *tar.Writer, srcPath, archivePath string) error {
 
 // extractDir creates a directory with proper permissions.
 func extractDir(targetPath string, header *tar.Header, opts *Options) error {
-	mode := os.FileMode(0755)
+	mode := os.FileMode(0750)
 	if opts.PreservePermissions {
 		mode = header.FileInfo().Mode()
 	}
@@ -295,16 +312,20 @@ func extractDir(targetPath string, header *tar.Header, opts *Options) error {
 
 // extractFile extracts a regular file from the archive.
 func extractFile(r io.Reader, targetPath string, header *tar.Header, opts *Options) error {
-	mode := os.FileMode(0644)
+	mode := os.FileMode(0600)
 	if opts.PreservePermissions {
 		mode = header.FileInfo().Mode()
 	}
 
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode) // #nosec G304 - targetPath validated by isValidPath
 	if err != nil {
 		return fmt.Errorf("create file error: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("file close error: %w", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(file, r); err != nil {
 		return fmt.Errorf("write file error: %w", err)
@@ -323,8 +344,8 @@ func extractFile(r io.Reader, targetPath string, header *tar.Header, opts *Optio
 
 // extractSymlink creates a symbolic link.
 func extractSymlink(targetPath string, header *tar.Header) error {
-	// Remove if exists
-	os.Remove(targetPath)
+	// Remove if exists (ignore error if file doesn't exist)
+	_ = os.Remove(targetPath)
 
 	if err := os.Symlink(header.Linkname, targetPath); err != nil {
 		return fmt.Errorf("create symlink error: %w", err)
