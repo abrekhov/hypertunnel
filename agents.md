@@ -2,7 +2,7 @@
 
 This document provides a comprehensive overview of the HyperTunnel codebase for AI assistants working on this project.
 
-**Note:** Always keep this file in sync with `AGENTS.md`.
+**Note:** Always keep this file in sync with `CLAUDE.md`.
 
 ## Project Overview
 
