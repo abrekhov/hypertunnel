@@ -56,8 +56,10 @@ func TestChecksumWriter_Write(t *testing.T) {
 		buf := &bytes.Buffer{}
 		cw := NewChecksumWriter(buf)
 
-		cw.Write([]byte("hello "))
-		cw.Write([]byte("world"))
+		_, err := cw.Write([]byte("hello "))
+		require.NoError(t, err)
+		_, err = cw.Write([]byte("world"))
+		require.NoError(t, err)
 
 		assert.Equal(t, "hello world", buf.String())
 	})
@@ -78,7 +80,8 @@ func TestChecksumWriter_Sum(t *testing.T) {
 		cw := NewChecksumWriter(buf)
 
 		data := []byte("hello world")
-		cw.Write(data)
+		_, err := cw.Write(data)
+		require.NoError(t, err)
 
 		sum := cw.Sum()
 
@@ -107,7 +110,8 @@ func TestChecksumWriter_Sum(t *testing.T) {
 		for i := range data {
 			data[i] = byte(i % 256)
 		}
-		cw.Write(data)
+		_, err := cw.Write(data)
+		require.NoError(t, err)
 
 		sum := cw.Sum()
 		expected := sha256.Sum256(data)
@@ -118,8 +122,10 @@ func TestChecksumWriter_Sum(t *testing.T) {
 		buf := &bytes.Buffer{}
 		cw := NewChecksumWriter(buf)
 
-		cw.Write([]byte("hello "))
-		cw.Write([]byte("world"))
+		_, err := cw.Write([]byte("hello "))
+		require.NoError(t, err)
+		_, err = cw.Write([]byte("world"))
+		require.NoError(t, err)
 
 		sum := cw.Sum()
 
@@ -134,7 +140,8 @@ func TestChecksumWriter_SumHex(t *testing.T) {
 		buf := &bytes.Buffer{}
 		cw := NewChecksumWriter(buf)
 
-		cw.Write([]byte("hello world"))
+		_, err := cw.Write([]byte("hello world"))
+		require.NoError(t, err)
 
 		sumHex := cw.SumHex()
 
@@ -149,8 +156,10 @@ func TestChecksumWriter_BytesWritten(t *testing.T) {
 		buf := &bytes.Buffer{}
 		cw := NewChecksumWriter(buf)
 
-		cw.Write([]byte("hello"))
-		cw.Write([]byte("world"))
+		_, err := cw.Write([]byte("hello"))
+		require.NoError(t, err)
+		_, err = cw.Write([]byte("world"))
+		require.NoError(t, err)
 
 		assert.Equal(t, int64(10), cw.BytesWritten())
 	})
@@ -194,8 +203,10 @@ func TestChecksumReader_Read(t *testing.T) {
 		buf1 := make([]byte, 5)
 		buf2 := make([]byte, 6)
 
-		n1, _ := cr.Read(buf1)
-		n2, _ := cr.Read(buf2)
+		n1, err := cr.Read(buf1)
+		require.NoError(t, err)
+		n2, err := cr.Read(buf2)
+		require.NoError(t, err)
 
 		assert.Equal(t, 5, n1)
 		assert.Equal(t, 6, n2)
@@ -212,8 +223,10 @@ func TestChecksumReader_Read(t *testing.T) {
 
 		assert.Equal(t, 4, n)
 		// First read may or may not return EOF depending on implementation
-		// Read again to get EOF
-		_, err = cr.Read(buf)
+		if err == nil {
+			// Read again to get EOF
+			_, err = cr.Read(buf)
+		}
 		assert.Equal(t, io.EOF, err)
 	})
 }
@@ -225,7 +238,8 @@ func TestChecksumReader_Sum(t *testing.T) {
 
 		// Read all data
 		buf := make([]byte, len(data))
-		cr.Read(buf)
+		_, err := cr.Read(buf)
+		require.NoError(t, err)
 
 		sum := cr.Sum()
 		expected := sha256.Sum256(data)
@@ -238,7 +252,8 @@ func TestChecksumReader_Sum(t *testing.T) {
 
 		// Read only part of data
 		buf := make([]byte, 5)
-		cr.Read(buf) // reads "hello"
+		_, err := cr.Read(buf) // reads "hello"
+		require.NoError(t, err)
 
 		sum := cr.Sum()
 		expected := sha256.Sum256([]byte("hello"))
@@ -252,8 +267,10 @@ func TestChecksumReader_BytesRead(t *testing.T) {
 		cr := NewChecksumReader(bytes.NewReader(data))
 
 		buf := make([]byte, 5)
-		cr.Read(buf)
-		cr.Read(buf)
+		_, err := cr.Read(buf)
+		require.NoError(t, err)
+		_, err = cr.Read(buf)
+		require.NoError(t, err)
 
 		assert.Equal(t, int64(10), cr.BytesRead())
 	})
@@ -291,7 +308,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		// Calculate checksum
@@ -310,7 +327,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 	t.Run("handles empty file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "empty.txt")
-		err := os.WriteFile(tmpFile, []byte{}, 0644)
+		err := os.WriteFile(tmpFile, []byte{}, 0600)
 		require.NoError(t, err)
 
 		sum, err := CalculateFileChecksum(tmpFile)
@@ -329,7 +346,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 		for i := range data {
 			data[i] = byte(i % 256)
 		}
-		err := os.WriteFile(tmpFile, data, 0644)
+		err := os.WriteFile(tmpFile, data, 0600)
 		require.NoError(t, err)
 
 		sum, err := CalculateFileChecksum(tmpFile)
@@ -345,7 +362,7 @@ func TestVerifyFileChecksum(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		expected := sha256.Sum256(content)
@@ -358,7 +375,7 @@ func TestVerifyFileChecksum(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		wrong := sha256.Sum256([]byte("different"))
@@ -413,7 +430,7 @@ func BenchmarkChecksumWriter_Write(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cw.Write(data)
+		_, _ = cw.Write(data)
 	}
 }
 
@@ -422,11 +439,12 @@ func BenchmarkCalculateFileChecksum(b *testing.B) {
 	tmpDir := b.TempDir()
 	tmpFile := filepath.Join(tmpDir, "benchmark.bin")
 	data := make([]byte, 1024*1024) // 1MB
-	os.WriteFile(tmpFile, data, 0644)
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		CalculateFileChecksum(tmpFile)
+		_, _ = CalculateFileChecksum(tmpFile)
 	}
 }
-

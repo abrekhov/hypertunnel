@@ -43,7 +43,7 @@ func TestMetadataFromFile(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		m, err := MetadataFromFile(tmpFile)
@@ -70,7 +70,7 @@ func TestMetadataFromFile(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		m, err := MetadataFromFileWithChecksum(tmpFile)
@@ -360,7 +360,7 @@ func BenchmarkMetadata_Encode(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.Encode()
+		_, _ = m.Encode()
 	}
 }
 
@@ -372,10 +372,13 @@ func BenchmarkDecodeMetadata(b *testing.B) {
 		Mode:     0644,
 		ModTime:  time.Now(),
 	}
-	encoded, _ := m.Encode()
+	encoded, err := m.Encode()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		DecodeMetadata(encoded)
+		_, _ = DecodeMetadata(encoded)
 	}
 }

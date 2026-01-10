@@ -60,7 +60,7 @@ func TestTransfer_StartSend(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		tr := NewTransfer()
@@ -77,7 +77,7 @@ func TestTransfer_StartSend(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
 		content := []byte("hello world")
-		err := os.WriteFile(tmpFile, content, 0644)
+		err := os.WriteFile(tmpFile, content, 0600)
 		require.NoError(t, err)
 
 		tr := NewTransfer()
@@ -142,7 +142,8 @@ func TestTransfer_StartReceive(t *testing.T) {
 func TestTransfer_UpdateProgress(t *testing.T) {
 	t.Run("updates progress and returns metrics", func(t *testing.T) {
 		tr := NewTransfer()
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 1000})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 1000})
+		require.NoError(t, err)
 
 		metrics := tr.UpdateProgress(500)
 
@@ -153,7 +154,8 @@ func TestTransfer_UpdateProgress(t *testing.T) {
 
 	t.Run("accumulates progress", func(t *testing.T) {
 		tr := NewTransfer()
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 1000})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 1000})
+		require.NoError(t, err)
 
 		tr.UpdateProgress(200)
 		tr.UpdateProgress(300)
@@ -166,7 +168,8 @@ func TestTransfer_UpdateProgress(t *testing.T) {
 func TestTransfer_Complete(t *testing.T) {
 	t.Run("marks transfer as complete", func(t *testing.T) {
 		tr := NewTransfer()
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		require.NoError(t, err)
 		tr.UpdateProgress(100)
 
 		tr.Complete()
@@ -179,7 +182,8 @@ func TestTransfer_Complete(t *testing.T) {
 func TestTransfer_Fail(t *testing.T) {
 	t.Run("marks transfer as failed with error", func(t *testing.T) {
 		tr := NewTransfer()
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		require.NoError(t, err)
 
 		testErr := assert.AnError
 		tr.Fail(testErr)
@@ -194,10 +198,12 @@ func TestTransfer_Status(t *testing.T) {
 	t.Run("returns full status", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
-		os.WriteFile(tmpFile, []byte("hello world"), 0644)
+		err := os.WriteFile(tmpFile, []byte("hello world"), 0600)
+		require.NoError(t, err)
 
 		tr := NewTransfer()
-		tr.StartSend(tmpFile, false)
+		_, err = tr.StartSend(tmpFile, false)
+		require.NoError(t, err)
 		tr.MetadataSent()
 		tr.UpdateProgress(5)
 
@@ -216,11 +222,12 @@ func TestTransfer_SetProgressCallback(t *testing.T) {
 		var callCount int32
 
 		tr := NewTransfer()
-		tr.SetProgressCallback(func(status *Status) {
+		tr.SetProgressCallback(func(_ *Status) {
 			atomic.AddInt32(&callCount, 1)
 		})
 
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100})
+		require.NoError(t, err)
 		tr.UpdateProgress(50)
 		tr.Complete()
 
@@ -232,7 +239,8 @@ func TestTransfer_SetProgressCallback(t *testing.T) {
 func TestTransfer_ConcurrentAccess(t *testing.T) {
 	t.Run("handles concurrent progress updates", func(t *testing.T) {
 		tr := NewTransfer()
-		tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100000})
+		err := tr.StartReceive(&Metadata{Filename: "test.txt", Size: 100000})
+		require.NoError(t, err)
 
 		done := make(chan bool, 10)
 		for i := 0; i < 10; i++ {
@@ -259,10 +267,12 @@ func TestTransfer_MetadataSent(t *testing.T) {
 	t.Run("transitions to transferring state", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
-		os.WriteFile(tmpFile, []byte("hello world"), 0644)
+		err := os.WriteFile(tmpFile, []byte("hello world"), 0600)
+		require.NoError(t, err)
 
 		tr := NewTransfer()
-		tr.StartSend(tmpFile, false)
+		_, err = tr.StartSend(tmpFile, false)
+		require.NoError(t, err)
 		assert.Equal(t, StateMetadata, tr.state)
 
 		tr.MetadataSent()
@@ -275,10 +285,12 @@ func TestTransfer_GetMetadata(t *testing.T) {
 	t.Run("returns metadata after send start", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tmpFile := filepath.Join(tmpDir, "testfile.txt")
-		os.WriteFile(tmpFile, []byte("hello world"), 0644)
+		err := os.WriteFile(tmpFile, []byte("hello world"), 0600)
+		require.NoError(t, err)
 
 		tr := NewTransfer()
-		tr.StartSend(tmpFile, false)
+		_, err = tr.StartSend(tmpFile, false)
+		require.NoError(t, err)
 
 		m := tr.GetMetadata()
 
