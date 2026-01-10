@@ -2,55 +2,137 @@ package datachannel
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/abrekhov/hypertunnel/pkg/archive"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 func FileTransferHandler(channel *webrtc.DataChannel) {
 	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 	log.Debugf("DataChannel Opts: %#v\n", channel)
-	_, err := os.Stat(channel.Label())
+
+	// Detect if this is a directory archive
+	isArchive := strings.HasSuffix(channel.Label(), ".tar.gz")
+	targetPath := channel.Label()
+
+	if isArchive {
+		// Remove .tar.gz suffix to get directory name
+		targetPath = strings.TrimSuffix(channel.Label(), ".tar.gz")
+		fmt.Printf("Receiving directory: %s (archived)\n", targetPath)
+	}
+
+	// Check if target already exists
+	_, err := os.Stat(targetPath)
 	if err == nil {
 		if !AutoAccept {
-			overwrite := askForConfirmation(fmt.Sprintf("File %s exists. Overwrite?", channel.Label()), os.Stdin)
+			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
+				map[bool]string{true: "Directory", false: "File"}[isArchive],
+				targetPath), os.Stdin)
 			if !overwrite {
 				fmt.Println("OK! Ignoring...")
 				return
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		log.Errorf("Failed to check existing file %s: %v", channel.Label(), err)
+		log.Errorf("Failed to check existing %s: %v", targetPath, err)
 		return
 	}
+
 	if !AutoAccept {
-		c := askForConfirmation(fmt.Sprintf("Do you want to receive the file %s?", channel.Label()), os.Stdin)
+		c := askForConfirmation(fmt.Sprintf("Do you want to receive %s %s?",
+			map[bool]string{true: "directory", false: "file"}[isArchive],
+			targetPath), os.Stdin)
 		if !c {
 			fmt.Println("OK! Ignoring...")
 			return
 		}
 	}
 
-	var fd *os.File
-	fd, err = os.Create(channel.Label())
-	cobra.CheckErr(err)
+	if isArchive {
+		// For archives, collect data in memory then extract
+		handleArchiveTransfer(channel, targetPath)
+	} else {
+		// For regular files, write directly to disk
+		handleFileTransfer(channel, targetPath)
+	}
+}
+
+// handleFileTransfer handles receiving a regular file.
+func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
+	fd, err := os.Create(targetPath)
+	if err != nil {
+		log.Errorf("Failed to create file: %v", err)
+		return
+	}
+
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
-		// fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
 		if _, err := fd.Write(msg.Data); err != nil {
 			log.Errorf("Failed to write data: %v", err)
 		}
 	})
+
 	channel.OnClose(func() {
 		fmt.Printf("Data channel '%s'-'%d' closed. Transfer complete.\n", channel.Label(), channel.ID())
 		if err := fd.Close(); err != nil {
 			log.Errorf("Failed to close file: %v", err)
 		}
+		os.Exit(0)
+	})
+}
+
+// handleArchiveTransfer handles receiving and extracting a directory archive.
+func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
+	// Collect all data in a buffer
+	var buf bytes.Buffer
+	totalReceived := int64(0)
+
+	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
+		n, err := buf.Write(msg.Data)
+		if err != nil {
+			log.Errorf("Failed to buffer data: %v", err)
+			return
+		}
+		totalReceived += int64(n)
+		log.Debugf("Received: %d bytes (total: %d)", n, totalReceived)
+	})
+
+	channel.OnClose(func() {
+		fmt.Printf("Data channel '%s'-'%d' closed.\n", channel.Label(), channel.ID())
+		fmt.Printf("Total received: %d bytes\n", totalReceived)
+		fmt.Println("Extracting archive...")
+
+		// Extract the archive
+		opts := archive.DefaultOptions()
+
+		// Get current directory
+		currentDir, err := os.Getwd()
+		if err != nil {
+			log.Errorf("Failed to get current directory: %v", err)
+			os.Exit(1)
+		}
+
+		// Create the target directory if it doesn't exist
+		destPath := filepath.Join(currentDir, targetPath)
+		if err := os.MkdirAll(destPath, 0755); err != nil {
+			log.Errorf("Failed to create directory: %v", err)
+			os.Exit(1)
+		}
+
+		// Extract archive
+		if err := archive.ExtractTarGz(&buf, destPath, opts); err != nil {
+			log.Errorf("Failed to extract archive: %v", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Directory extracted to: %s\n", destPath)
 		os.Exit(0)
 	})
 }
