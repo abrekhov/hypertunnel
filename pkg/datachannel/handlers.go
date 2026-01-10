@@ -32,11 +32,15 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// fmt.Printf("Message from DataChannel '%s': '%s'\n", channel.Label(), string(msg.Data))
-		fd.Write(msg.Data)
+		if _, err := fd.Write(msg.Data); err != nil {
+			log.Errorf("Failed to write data: %v", err)
+		}
 	})
 	channel.OnClose(func() {
 		fmt.Printf("Data channel '%s'-'%d' closed. Transfering ended...\n", channel.Label(), channel.ID())
-		fd.Close()
+		if err := fd.Close(); err != nil {
+			log.Errorf("Failed to close file: %v", err)
+		}
 		os.Exit(0)
 	})
 }

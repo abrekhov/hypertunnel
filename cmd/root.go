@@ -239,7 +239,13 @@ func Connection(cmd *cobra.Command, args []string) {
 			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
 			os.Exit(0)
 		})
-		defer fd.Close()
+		defer func() {
+			if fd != nil {
+				if err := fd.Close(); err != nil {
+					log.Errorf("Failed to close file: %v", err)
+				}
+			}
+		}()
 	}
 
 	select {}
