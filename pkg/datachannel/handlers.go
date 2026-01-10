@@ -31,12 +31,19 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	// Check if target already exists
 	_, err := os.Stat(targetPath)
 	if err == nil {
-		if !AutoAccept {
+		if !OverwriteExisting {
 			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
 				map[bool]string{true: "Directory", false: "File"}[isArchive],
 				targetPath), os.Stdin)
 			if !overwrite {
 				fmt.Println("OK! Ignoring...")
+				return
+			}
+		}
+
+		if isArchive {
+			if err := os.RemoveAll(targetPath); err != nil {
+				log.Errorf("Failed to remove existing directory: %v", err)
 				return
 			}
 		}
@@ -138,6 +145,7 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 }
 
 var AutoAccept bool
+var OverwriteExisting bool
 
 func askForConfirmation(s string, in io.Reader) bool {
 	tries := 3
