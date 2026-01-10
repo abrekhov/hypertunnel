@@ -219,22 +219,25 @@ func Connection(cmd *cobra.Command, args []string) {
 			r := bufio.NewReader(fd)
 			chunk := make([]byte, 65534)
 			for {
-				nbytes, err := r.Read(chunk)
+				nbytes, readErr := r.Read(chunk)
 				log.Debugln("nbytes:", nbytes)
 				if nbytes > 0 {
-					err = channel.Send(chunk[:nbytes])
-					if err != nil {
-						log.Debugln(err)
+					if sendErr := channel.Send(chunk[:nbytes]); sendErr != nil {
+						log.Debugln(sendErr)
+						if err := channel.Close(); err != nil {
+							log.Debugln(err)
+						}
+						break
 					}
 				}
-				if err == io.EOF {
+				if readErr == io.EOF {
 					if err := channel.Close(); err != nil {
 						log.Debugln(err)
 					}
 					break
 				}
-				if err != nil {
-					log.Errorf("Failed reading file: %v", err)
+				if readErr != nil {
+					log.Errorf("Failed reading file: %v", readErr)
 					if err := channel.Close(); err != nil {
 						log.Debugln(err)
 					}
