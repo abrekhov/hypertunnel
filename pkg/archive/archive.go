@@ -331,11 +331,18 @@ func extractFile(r io.Reader, targetPath string, header *tar.Header, opts *Optio
 		return fmt.Errorf("write file error: %w", err)
 	}
 
+	if opts.PreservePermissions {
+		if err := os.Chmod(targetPath, header.FileInfo().Mode().Perm()); err != nil {
+			// Non-fatal, just log
+			_ = err
+		}
+	}
+
 	// Preserve modification time
 	if opts.PreservePermissions {
 		if err := os.Chtimes(targetPath, header.AccessTime, header.ModTime); err != nil {
 			// Non-fatal, just log
-			return nil
+			_ = err
 		}
 	}
 
@@ -372,11 +379,19 @@ func shouldExclude(path string, patterns []string) bool {
 
 // isValidPath validates that a path doesn't contain directory traversal sequences.
 func isValidPath(path string) bool {
-	// Reject paths that try to escape the target directory
-	if strings.Contains(path, "..") {
+	cleanPath := filepath.ToSlash(filepath.Clean(path))
+	if filepath.IsAbs(path) || filepath.VolumeName(path) != "" {
 		return false
 	}
-	if filepath.IsAbs(path) {
+	if strings.HasPrefix(cleanPath, "/") {
+		return false
+	}
+	for _, part := range strings.Split(cleanPath, "/") {
+		if part == ".." {
+			return false
+		}
+	}
+	if strings.Contains(path, "..") {
 		return false
 	}
 	return true

@@ -5,15 +5,16 @@
 package datachannel
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestSignal is a helper to create a test Signal struct
@@ -40,34 +41,20 @@ func createTestSignal() Signal {
 }
 
 func TestEncode(t *testing.T) {
-	t.Run("encodes signal to base64", func(t *testing.T) {
-		signal := createTestSignal()
-		encoded := Encode(signal)
-
-		// Should return a non-empty string
-		assert.NotEmpty(t, encoded, "Encoded signal should not be empty")
-
-		// Should be valid base64
-		_, err := base64.StdEncoding.DecodeString(encoded)
-		assert.NoError(t, err, "Encoded signal should be valid base64")
-	})
-
-	t.Run("encoded signal can be decoded back", func(t *testing.T) {
+	t.Run("round-trips signal through Encode and Decode", func(t *testing.T) {
 		original := createTestSignal()
 		encoded := Encode(original)
 
-		// Decode back
-		decoded, err := base64.StdEncoding.DecodeString(encoded)
-		require.NoError(t, err)
+		assert.NotEmpty(t, encoded, "Encoded signal should not be empty")
 
-		var signal Signal
-		err = json.Unmarshal(decoded, &signal)
-		require.NoError(t, err)
+		var decoded Signal
+		assert.NotPanics(t, func() {
+			Decode(encoded, &decoded)
+		})
 
-		// Compare key fields
-		assert.Equal(t, original.ICEParameters.UsernameFragment, signal.ICEParameters.UsernameFragment)
-		assert.Equal(t, original.ICEParameters.Password, signal.ICEParameters.Password)
-		assert.Equal(t, original.DTLSParameters.Role, signal.DTLSParameters.Role)
+		assert.Equal(t, original.ICEParameters.UsernameFragment, decoded.ICEParameters.UsernameFragment)
+		assert.Equal(t, original.ICEParameters.Password, decoded.ICEParameters.Password)
+		assert.Equal(t, original.DTLSParameters.Role, decoded.DTLSParameters.Role)
 	})
 
 	t.Run("encodes empty signal", func(t *testing.T) {
@@ -249,16 +236,41 @@ func BenchmarkEncodeDecodeRoundTrip(b *testing.B) {
 	}
 }
 
-func TestEncode_InvalidObjectExits(t *testing.T) {
-	runHelperProcess(t, "encode-invalid")
+func TestEncodeDecode_InvalidInputsExit(t *testing.T) {
+	testCases := []struct {
+		name string
+		mode string
+	}{
+		{
+			name: "encode-invalid",
+			mode: "encode-invalid",
+		},
+		{
+			name: "invalid-base64",
+			mode: "decode-invalid-base64",
+		},
+		{
+			name: "invalid-json",
+			mode: "decode-invalid-json",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			runHelperProcess(t, testCase.mode)
+		})
+	}
 }
 
-func TestDecode_InvalidBase64Exits(t *testing.T) {
-	runHelperProcess(t, "decode-invalid-base64")
-}
+func TestMustReadStdin(t *testing.T) {
+	reader := strings.NewReader("line-one\nline-two\n\nignored\n")
+	writer := &bytes.Buffer{}
 
-func TestDecode_InvalidJSONExits(t *testing.T) {
-	runHelperProcess(t, "decode-invalid-json")
+	result := mustReadStdinFrom(reader, writer)
+
+	assert.Equal(t, "line-one\nline-two", result)
+	assert.Contains(t, writer.String(), "Paste your SDP offer")
+	assert.Contains(t, writer.String(), "Received SDP Offer")
 }
 
 func TestHelperProcess(t *testing.T) {
