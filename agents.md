@@ -224,6 +224,42 @@ go install github.com/abrekhov/hypertunnel
 
 **Cross-Platform Build:** Uses GoReleaser (see below)
 
+### Linting and Code Quality
+
+**golangci-lint Version:** v1.64.8 (CI/CD)
+
+**IMPORTANT:** The project uses golangci-lint v1.64.8 in CI/CD. Always use this version for linting to ensure consistency.
+
+**Installation:**
+```bash
+# Install specific version v1.64.8
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
+```
+
+**Configuration:** `.golangci.yaml`
+- Compatible with golangci-lint v1.x
+- For v2.x, the `version: 2` field must be added to the config
+- Current config is optimized for v1.64.8
+
+**Run linting:**
+```bash
+golangci-lint run ./...
+```
+
+**Key linters enabled:**
+- `errcheck` - Check for unchecked errors
+- `govet` - Vet examines Go source code
+- `staticcheck` - Static analysis
+- `gosec` - Security problems
+- `revive` - Fast, configurable linter
+- See `.golangci.yaml` for full list
+
+**Note:** When fixing linting issues:
+1. Only fix issues in files you're actively working on
+2. Don't make sweeping changes to existing code unless explicitly required
+3. Use `#nosec` comments with justification for intentional security exceptions
+4. Pre-existing linting issues in `cmd/` files are acceptable
+
 ### GoReleaser Configuration (`.goreleaser.yaml`)
 
 **Purpose:** Automated multi-platform binary releases

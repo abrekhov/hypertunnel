@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ func TestCreateAndExtractTarGz(t *testing.T) {
 
 	for path, content := range testFiles {
 		fullPath := filepath.Join(srcDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750))           // #nosec G301 - test file
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750))     // #nosec G301 - test file
 		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0600)) // #nosec G306 - test file
 	}
 
@@ -121,7 +122,7 @@ func TestExcludePatterns(t *testing.T) {
 
 	for _, path := range testFiles {
 		fullPath := filepath.Join(srcDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750)) // #nosec G301 - test file
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0750))       // #nosec G301 - test file
 		require.NoError(t, os.WriteFile(fullPath, []byte("content"), 0600)) // #nosec G306 - test file
 	}
 
@@ -227,6 +228,10 @@ func TestShouldExclude(t *testing.T) {
 }
 
 func TestPreservePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not preserve Unix permission bits for extracted files")
+	}
+
 	// Create a temporary source directory
 	srcDir, err := os.MkdirTemp("", "hypertunnel-test-perms-*")
 	require.NoError(t, err)
