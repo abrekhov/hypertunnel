@@ -391,9 +391,6 @@ func isValidPath(path string) bool {
 			return false
 		}
 	}
-	if strings.Contains(path, "..") {
-		return false
-	}
 	return true
 }
 
