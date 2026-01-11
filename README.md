@@ -69,6 +69,7 @@ Both computers must have access to the Internet!
 - ✅ **Encryption/Decryption**: AES-256-CTR file encryption with keyphrase
 - ✅ **Progress Tracking**: Real-time progress monitoring with checksums
 - ✅ **NAT Traversal**: WebRTC-based connection through STUN/TURN/ICE
+- ✅ **Flexible Startup**: Peers can start in any order (symmetric connection setup)
 - ✅ **Auto-accept Mode**: Skip confirmation prompts for automation
 - ✅ **File Integrity**: SHA-256 checksum verification
 - ✅ **Cross-platform**: Linux, macOS, Windows support
@@ -83,7 +84,7 @@ Both computers must have access to the Internet!
 - [X] Directory transfer with automatic archiving
 - [X] Progress tracking and checksums
 - [X] Tests infrastructure
-- [ ] Start candidates in any order
+- [X] Start candidates in any order (symmetric connection setup)
 - [ ] Terminal UI with progress bars (Phase 2)
 - [ ] Resumable transfers
 - [ ] SSH server behind NAT

@@ -770,10 +770,10 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
 - `cmd/root.go` - Retry loop on connection failure
 
 #### 1.3 Connection Improvements
-- [ ] **Bi-directional candidate exchange**
-  - Allow starting in any order (remove offer/answer dependency)
-  - Implement symmetric connection setup
-  - Both peers act as ICE controllers initially
+- [x] **Bi-directional candidate exchange**
+  - ✅ Allow starting in any order (remove offer/answer dependency)
+  - ✅ Implement symmetric connection setup via ufrag comparison
+  - ✅ Deterministic role negotiation (DetermineICERole function)
 
 - [ ] **Multiple STUN/TURN servers**
   - Default list: Google, Mozilla, Cloudflare STUN
@@ -787,10 +787,15 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Switch to TURN if direct connection degrades
   - Expose connection stats in UI
 
-**Files to modify:**
-- `cmd/root.go` - ICE role negotiation, multi-server support
-- `pkg/datachannel/signal.go` - Enhanced signal struct
-- `pkg/stun/` (new package) - Multi-server management
+**Files modified (Phase 1.3 - Bi-directional exchange):**
+- ✅ `cmd/root.go` - Updated to use DetermineICERole instead of isOffer flag
+- ✅ `pkg/datachannel/role.go` - New file with role determination logic
+- ✅ `pkg/datachannel/role_test.go` - Comprehensive tests for role negotiation
+
+**Files to modify (remaining items):**
+- `cmd/root.go` - Multi-server support (pending)
+- `pkg/datachannel/signal.go` - Enhanced signal struct (pending)
+- `pkg/stun/` (new package) - Multi-server management (pending)
 
 #### 1.4 Security Enhancements
 - [ ] **Add auto-accept flag**

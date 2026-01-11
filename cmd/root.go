@@ -182,10 +182,12 @@ func Connection(cmd *cobra.Command, args []string) {
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
 
-	iceRole := webrtc.ICERoleControlled
-	if isOffer {
-		iceRole = webrtc.ICERoleControlling
-	}
+	// Determine ICE role using symmetric negotiation
+	// This allows peers to start in any order
+	iceRole := datachannel.DetermineICERole(iceParams, remoteSignal.ICEParameters)
+	log.Debugf("Determined ICE role: %v (local ufrag=%s, remote ufrag=%s)",
+		iceRole, iceParams.UsernameFragment, remoteSignal.ICEParameters.UsernameFragment)
+
 	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
 	cobra.CheckErr(err)
 

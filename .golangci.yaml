@@ -1,7 +1,7 @@
 # .golangci.yaml
 # golangci-lint configuration for HyperTunnel
-# Compatible with golangci-lint v1.64.8
-# Note: For v2.x, add 'version: 2' field
+# Compatible with golangci-lint v1.64.8+ and v2.x
+version: 2
 
 run:
   timeout: 5m
