@@ -1,31 +1,37 @@
-# .github/workflows/release.yaml
+# .github/workflows/release.yml
+
+name: Release
 
 on:
-  push
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  # packages: write
+  # issues: write
+  # id-token: write
 
 jobs:
-  build:
-    name: Build Go
+  goreleaser:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-go@v3
-    - run: go version
-    - run: go mod download
-    - run: ls
-    - run: mkdir build
-    - run: go build -o build/ht
-    - run: ls build
-    - name: Download a single artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: ht
-        path: build/ht
-    - uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "latest"
-        prerelease: false
-        files: |
-          build/ht
-
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # More assembly might be required: Docker logins, GPG, etc.
+      # It all depends on your needs.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

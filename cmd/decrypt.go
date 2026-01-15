@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"io"
-	"log"
 	"os"
 
 	"github.com/abrekhov/hypertunnel/pkg/hashutils"
@@ -50,7 +49,7 @@ func init() {
 }
 
 func decryptFile(cmd *cobra.Command, args []string) {
-	// KEY Proccessing
+	// KEY Processing
 	if keyphrase == "" {
 		logrus.Fatalln("Keyphrase is empty!")
 	}
@@ -63,11 +62,16 @@ func decryptFile(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
-	defer infile.Close()
+	defer func() {
+		if err := infile.Close(); err != nil {
+			logrus.Errorf("Failed to close input file: %v", err)
+		}
+	}()
 
 	fi, err := infile.Stat()
 	if err != nil {
-		log.Fatal(err)
+		logrus.WithError(err).Error("Failed to stat input file")
+		return
 	}
 
 	// Output file
@@ -75,7 +79,11 @@ func decryptFile(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	defer outfile.Close()
+	defer func() {
+		if err := outfile.Close(); err != nil {
+			logrus.Errorf("Failed to close output file: %v", err)
+		}
+	}()
 
 	// Block Cipher
 	block, err := aes.NewCipher(keyHash)
@@ -101,7 +109,9 @@ func decryptFile(cmd *cobra.Command, args []string) {
 			}
 			msgLen -= int64(n)
 			stream.XORKeyStream(buf, buf[:n])
-			outfile.Write(buf[:n])
+			if _, err := outfile.Write(buf[:n]); err != nil {
+				logrus.Fatalf("Failed to write decrypted data: %v", err)
+			}
 		}
 		if err == io.EOF {
 			break

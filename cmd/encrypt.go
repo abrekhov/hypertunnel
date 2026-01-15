@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -55,7 +55,7 @@ func init() {
 }
 
 func EncryptFile(cmd *cobra.Command, args []string) {
-	// KEY Proccessing
+	// KEY Processing
 	if keyphrase == "" {
 		logrus.Fatalln("Keyphrase is empty!")
 	}
@@ -68,14 +68,22 @@ func EncryptFile(cmd *cobra.Command, args []string) {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
-	defer infile.Close()
+	defer func() {
+		if err := infile.Close(); err != nil {
+			logrus.Errorf("Failed to close input file: %v", err)
+		}
+	}()
 
 	// Output file
 	outfile, err := os.OpenFile(filename+".enc", os.O_RDWR|os.O_CREATE, 0777)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	defer outfile.Close()
+	defer func() {
+		if err := outfile.Close(); err != nil {
+			logrus.Errorf("Failed to close output file: %v", err)
+		}
+	}()
 
 	// Block Cipher
 	block, err := aes.NewCipher(keyHash)
@@ -95,7 +103,9 @@ func EncryptFile(cmd *cobra.Command, args []string) {
 		n, err := infile.Read(buf)
 		if n > 0 {
 			stream.XORKeyStream(buf, buf[:n])
-			outfile.Write(buf[:n])
+			if _, err := outfile.Write(buf[:n]); err != nil {
+				logrus.Fatalf("Failed to write encrypted data: %v", err)
+			}
 		}
 		if err == io.EOF {
 			break
@@ -105,5 +115,7 @@ func EncryptFile(cmd *cobra.Command, args []string) {
 			break
 		}
 	}
-	outfile.Write(iv)
+	if _, err := outfile.Write(iv); err != nil {
+		logrus.Fatalf("Failed to write IV: %v", err)
+	}
 }

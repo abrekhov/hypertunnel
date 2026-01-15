@@ -1,0 +1,68 @@
+# .golangci.yaml
+# golangci-lint configuration for HyperTunnel
+# Compatible with golangci-lint v1.64.8
+# Note: For v2.x, add 'version: 2' field
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck      # Check for unchecked errors
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Static analysis
+    - unused        # Check for unused constants, variables, functions
+    - misspell      # Spell checker
+    - unconvert     # Remove unnecessary type conversions
+    - unparam       # Report unused function parameters
+    - gosec         # Security problems
+    - bodyclose     # Check HTTP body is closed
+    - noctx         # Detect sending http request without context.Context
+    - exhaustive    # Check exhaustiveness of enum switch statements
+    - copyloopvar   # Check for pointers to enclosing loop variables
+    - gocritic      # Opinionated Go source code linter
+    - revive        # Fast, configurable, extensible, flexible, and beautiful linter
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - shadow      # Can be noisy
+
+  gosec:
+    excludes:
+      - G104        # Audit errors not checked (too noisy)
+
+  revive:
+    rules:
+      - name: var-naming
+        disabled: false
+      - name: exported
+        disabled: false
+      - name: indent-error-flow
+        disabled: false
+      - name: errorf
+        disabled: false
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+        - gocritic
+
+    # Exclude cobra.CheckErr usage warnings
+    - text: "CheckErr"
+      linters:
+        - errcheck
+
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
+output:
+  sort-results: true

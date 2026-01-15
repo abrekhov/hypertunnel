@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,10 +17,12 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
-	"time"
 
+	"github.com/abrekhov/hypertunnel/pkg/archive"
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
@@ -32,10 +34,11 @@ import (
 
 // Flags
 var (
-	cfgFile string
-	verbose bool
-	isOffer bool
-	file    string
+	cfgFile    string
+	verbose    bool
+	isOffer    bool
+	file       string
+	autoAccept bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -70,6 +73,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hypertunnel.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
+	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming files and overwrites")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -96,8 +100,10 @@ func initConfig() {
 }
 
 func Connection(cmd *cobra.Command, args []string) {
+	datachannel.AutoAccept = autoAccept
 
 	// Who receiver and who sender?
+	var isDirectory bool
 	if file == "" {
 		isOffer = false
 		log.Infoln("Receiver started...")
@@ -107,8 +113,10 @@ func Connection(cmd *cobra.Command, args []string) {
 		if os.IsNotExist(err) {
 			log.Panicln("File does not exist.")
 		}
-		if info.IsDir() {
-			log.Panicln("Directory is not yet supported")
+		isDirectory = info.IsDir()
+		if isDirectory {
+			log.Infoln("Sender started (directory mode)...")
+			log.Debugf("Directory: %s\n", file)
 		} else {
 			log.Infoln("Sender started...")
 			log.Debugf("Fileinfo: %#v\n", info)
@@ -201,33 +209,89 @@ func Connection(cmd *cobra.Command, args []string) {
 		info, err := os.Stat(file)
 		cobra.CheckErr(err)
 
+		// Determine the label (filename to send)
+		label := info.Name()
+		if isDirectory {
+			// For directories, append .tar.gz to indicate it's archived
+			label += ".tar.gz"
+		}
+
 		dcParams := &webrtc.DataChannelParameters{
-			Label:   info.Name(),
+			Label:   label,
 			ID:      &id,
 			Ordered: true,
 		}
-		// log.Debugf("%#v\n", dcParams)
 		log.Debugf("Fileinfo: %#v\n", info)
 		var channel *webrtc.DataChannel
 		channel, err = api.NewDataChannel(sctp, dcParams)
 		cobra.CheckErr(err)
 
-		var fd *os.File
 		channel.OnOpen(func() {
-			fd, err := os.Open(file)
-			cobra.CheckErr(err)
-			r := bufio.NewReader(fd)
-			chunk := make([]byte, 65534)
-			for {
-				nbytes, err := r.Read(chunk)
-				log.Debugln("nbytes:", nbytes)
+			var r io.Reader
+
+			if isDirectory {
+				// Create archive on-the-fly
+				log.Infoln("Creating archive...")
+				var buf bytes.Buffer
+				opts := archive.DefaultOptions()
+				bytesWritten, err := archive.CreateTarGz(&buf, file, opts)
 				if err != nil {
-					<-time.After(time.Second * 30)
+					log.Errorf("Failed to create archive: %v", err)
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
+					return
+				}
+				log.Infof("Archive created: %d bytes", bytesWritten)
+				r = &buf
+			} else {
+				// Regular file transfer
+				fd, err := os.Open(file) // #nosec G304 - file path is from user-provided flag
+				if err != nil {
+					log.Errorf("Failed to open file: %v", err)
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
+					return
+				}
+				defer func() {
+					if closeErr := fd.Close(); closeErr != nil {
+						log.Errorf("Failed to close file: %v", closeErr)
+					}
+				}()
+				r = fd
+			}
+
+			// Stream data in chunks
+			bufReader := bufio.NewReader(r)
+			chunk := make([]byte, 65534)
+			totalSent := int64(0)
+			for {
+				nbytes, readErr := bufReader.Read(chunk)
+				log.Debugln("nbytes:", nbytes)
+				if nbytes > 0 {
+					totalSent += int64(nbytes)
+					if sendErr := channel.Send(chunk[:nbytes]); sendErr != nil {
+						log.Debugln(sendErr)
+						if err := channel.Close(); err != nil {
+							log.Debugln(err)
+						}
+						break
+					}
+				}
+				if readErr == io.EOF {
+					log.Infof("Transfer complete: %d bytes sent", totalSent)
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
 					break
 				}
-				err = channel.Send(chunk[:nbytes])
-				if err != nil {
-					log.Debugln(err)
+				if readErr != nil {
+					log.Errorf("Failed reading: %v", readErr)
+					if err := channel.Close(); err != nil {
+						log.Debugln(err)
+					}
+					break
 				}
 			}
 			// err = fd.Close()
@@ -236,10 +300,9 @@ func Connection(cmd *cobra.Command, args []string) {
 		})
 		channel.OnClose(func() {
 			fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
-			fmt.Printf("Chunks from DataChannel '%s' transfered.\n", channel.Label())
+			fmt.Printf("Chunks from DataChannel '%s' transferred.\n", channel.Label())
 			os.Exit(0)
 		})
-		defer fd.Close()
 	}
 
 	select {}

@@ -8,9 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 
-	"github.com/chzyer/readline"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -35,17 +34,16 @@ func Decode(in string, obj interface{}) {
 
 // MustReadStdin waiting for base64 encoded SDP for connection
 func MustReadStdin() string {
-	// GNU like readline used because of macOS terminal os.Stdin 1024 char limit
-	rl, err := readline.New("Insert remote SDP: ")
-	cobra.CheckErr(err)
-	defer rl.Close()
-
-	var in string
-	line, err := rl.Readline()
-	cobra.CheckErr(err)
-	readline.Stdin.Close()
-	fmt.Printf("\nSDP read.\n")
-	in = line
-	in = strings.TrimSpace(in)
-	return in
+	var sdpOffer string
+	prompt := &survey.Multiline{
+		Message: "Paste your SDP offer (end with Ctrl+D):",
+	}
+	err := survey.AskOne(prompt, &sdpOffer)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return ""
+	}
+	fmt.Println("Received SDP Offer:")
+	fmt.Println(sdpOffer)
+	return sdpOffer
 }
