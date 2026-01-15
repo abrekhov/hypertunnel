@@ -23,12 +23,12 @@ const (
 
 // Model is the main Bubble Tea model
 type Model struct {
-	state      State
 	connection *ConnectionModel
 	transfer   *TransferModel
 	err        error
 	width      int
 	height     int
+	state      State
 }
 
 // NewModel creates a new TUI model
@@ -94,6 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.transfer != nil {
 			*m.transfer, cmd = m.transfer.Update(msg)
 		}
+	case StateDone, StateError:
+		// Terminal states, no further updates needed
 	}
 
 	return m, cmd

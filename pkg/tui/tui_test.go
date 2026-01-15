@@ -53,15 +53,15 @@ func TestTransferModel(t *testing.T) {
 
 func TestFormatBytes(t *testing.T) {
 	tests := []struct {
-		input    int64
 		expected string
+		input    int64
 	}{
-		{0, "0 B"},
-		{1023, "1023 B"},
-		{1024, "1.0 KB"},
-		{1536, "1.5 KB"},
-		{1048576, "1.0 MB"},
-		{1073741824, "1.0 GB"},
+		{"0 B", 0},
+		{"1023 B", 1023},
+		{"1.0 KB", 1024},
+		{"1.5 KB", 1536},
+		{"1.0 MB", 1048576},
+		{"1.0 GB", 1073741824},
 	}
 
 	for _, tt := range tests {
@@ -74,13 +74,13 @@ func TestFormatBytes(t *testing.T) {
 
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
-		input    time.Duration
 		expected string
+		input    time.Duration
 	}{
-		{30 * time.Second, "00:30"},
-		{90 * time.Second, "01:30"},
-		{3600 * time.Second, "01:00:00"},
-		{3661 * time.Second, "01:01:01"},
+		{"00:30", 30 * time.Second},
+		{"01:30", 90 * time.Second},
+		{"01:00:00", 3600 * time.Second},
+		{"01:01:01", 3661 * time.Second},
 	}
 
 	for _, tt := range tests {

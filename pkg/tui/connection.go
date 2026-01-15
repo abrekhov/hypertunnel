@@ -15,14 +15,14 @@ import (
 
 // ConnectionModel represents the connection screen
 type ConnectionModel struct {
-	isOffer  bool
-	filename string
-	filesize int64
 	spinner  spinner.Model
-	status   string
+	filename string
 	localSDP string
+	status   string
+	filesize int64
 	width    int
 	height   int
+	isOffer  bool
 }
 
 // NewConnectionModel creates a new connection screen model

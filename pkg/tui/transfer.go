@@ -16,16 +16,16 @@ import (
 
 // TransferModel represents the transfer screen
 type TransferModel struct {
-	filename    string
-	filesize    int64
-	transferred int64
 	progress    progress.Model
 	startTime   time.Time
-	speed       float64
+	filename    string
+	status      string
 	eta         time.Duration
+	filesize    int64
+	transferred int64
+	speed       float64
 	width       int
 	height      int
-	status      string
 }
 
 // NewTransferModel creates a new transfer screen model
