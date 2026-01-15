@@ -165,9 +165,7 @@ type Signal struct {
   - Creates file with channel label as filename
   - Registers OnMessage handler to write data chunks
   - Registers OnClose handler to finalize transfer
-- `askForConfirmation(s string, in io.Reader) bool` - User confirmation (currently hardcoded to return `true`)
-
-**IMPORTANT NOTE:** The confirmation function is currently bypassed (line 44 returns `true` immediately). The actual confirmation logic on lines 45-63 is unreachable.
+- `askForConfirmation(s string, in io.Reader) bool` - User confirmation prompt for incoming files.
 
 #### `datachannel_test.go` (19 lines)
 Skeleton tests (not implemented):
@@ -223,6 +221,42 @@ go install github.com/abrekhov/hypertunnel
 ```
 
 **Cross-Platform Build:** Uses GoReleaser (see below)
+
+### Linting and Code Quality
+
+**golangci-lint Version:** v1.64.8 (CI/CD)
+
+**IMPORTANT:** The project uses golangci-lint v1.64.8 in CI/CD. Always use this version for linting to ensure consistency.
+
+**Installation:**
+```bash
+# Install specific version v1.64.8
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
+```
+
+**Configuration:** `.golangci.yaml`
+- Compatible with golangci-lint v1.x
+- For v2.x, the `version: 2` field must be added to the config
+- Current config is optimized for v1.64.8
+
+**Run linting:**
+```bash
+golangci-lint run ./...
+```
+
+**Key linters enabled:**
+- `errcheck` - Check for unchecked errors
+- `govet` - Vet examines Go source code
+- `staticcheck` - Static analysis
+- `gosec` - Security problems
+- `revive` - Fast, configurable linter
+- See `.golangci.yaml` for full list
+
+**Note:** When fixing linting issues:
+1. Only fix issues in files you're actively working on
+2. Don't make sweeping changes to existing code unless explicitly required
+3. Use `#nosec` comments with justification for intentional security exceptions
+4. Pre-existing linting issues in `cmd/` files are acceptable
 
 ### GoReleaser Configuration (`.goreleaser.yaml`)
 
@@ -759,10 +793,9 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
 - `pkg/stun/` (new package) - Multi-server management
 
 #### 1.4 Security Enhancements
-- [ ] **Fix confirmation bypass bug**
-  - Remove `return true` hardcode in `askForConfirmation()`
-  - Implement actual user prompt before accepting files
-  - Add --auto-accept flag for automation
+- [ ] **Add auto-accept flag**
+  - Allow skipping the confirmation prompt for automation
+  - Keep prompting as the default behavior
 
 - [ ] **Improved key derivation**
   - Replace SHA256 with Argon2id KDF
@@ -780,7 +813,7 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Add --overwrite flag for automation
 
 **Files to modify:**
-- `pkg/datachannel/handlers.go` - Fix confirmation & overwrite
+- `pkg/datachannel/handlers.go` - Add overwrite prompt + auto-accept flag
 - `pkg/hashutils/hashutils.go` - Implement Argon2id
 - `pkg/crypto/` (new package) - Signal authentication
 
@@ -1427,9 +1460,9 @@ package() {
 
 ### Critical Path (Start Here)
 
-1. **Fix existing bugs** (Phase 1.4 Security)
-   - Confirmation bypass
-   - File overwrite check
+1. **Harden incoming file handling** (Phase 1.4 Security)
+   - Add overwrite prompt/flag
+   - Add optional auto-accept flag
    - **Est:** 1 day
 
 2. **Add basic testing** (Phase 1.5)
@@ -1504,10 +1537,10 @@ When implementing features from this roadmap:
 6. **Use TodoWrite tool** - Track progress on multi-step features
 
 **Next immediate steps:**
-1. Fix confirmation bypass bug (`pkg/datachannel/handlers.go:44`)
-2. Fix file overwrite check (`pkg/datachannel/handlers.go:18-21`)
-3. Complete unit tests (`pkg/datachannel/datachannel_test.go`)
-4. Add progress tracking to file transfer
+1. Add overwrite prompt/flag (`pkg/datachannel/handlers.go`)
+2. Add progress tracking to file transfer
+3. Add directory transfer support
+4. Complete unit tests (`pkg/datachannel/datachannel_test.go`)
 5. Start Bubble Tea TUI implementation
 
 ---
@@ -1533,11 +1566,7 @@ When implementing features from this roadmap:
    - Impact: Dictionary attacks on weak passphrases
    - Improvement: Use PBKDF2, bcrypt, or Argon2
 
-4. **Confirmation Bypassed:** `askForConfirmation()` returns true (line 44 in handlers.go)
-   - Impact: Files auto-accepted without user consent
-   - Fix: Remove early return, enable actual user prompt
-
-5. **File Overwrite Risk:** Receiver doesn't check for existing files correctly
+4. **File Overwrite Risk:** Receiver doesn't check for existing files correctly
    - Line 18-21 in handlers.go: Uses `os.IsExist(err)` but `os.Stat()` returns `nil` error if file doesn't exist
    - Correct check: `!os.IsNotExist(err)` or `err == nil`
 
@@ -1713,7 +1742,7 @@ HyperTunnel is a focused, well-structured P2P file transfer tool with clear sepa
 **Areas for Improvement:**
 - Test coverage
 - File integrity verification
-- User confirmation implementation
+- File overwrite protection
 - Progress reporting
 
 **Philosophy:** Keep it simple. Don't over-engineer. Add features when clearly needed, not speculatively.
