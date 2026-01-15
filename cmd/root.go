@@ -24,6 +24,7 @@ import (
 
 	"github.com/abrekhov/hypertunnel/pkg/archive"
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
+	"github.com/abrekhov/hypertunnel/pkg/tui"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -39,6 +40,7 @@ var (
 	isOffer    bool
 	file       string
 	autoAccept bool
+	noTUI      bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -74,6 +76,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
 	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming files and overwrites")
+	rootCmd.Flags().BoolVar(&noTUI, "no-tui", false, "Disable the terminal UI (use plain text output)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -104,6 +107,7 @@ func Connection(cmd *cobra.Command, args []string) {
 
 	// Who receiver and who sender?
 	var isDirectory bool
+	var filesize int64
 	if file == "" {
 		isOffer = false
 		log.Infoln("Receiver started...")
@@ -114,6 +118,9 @@ func Connection(cmd *cobra.Command, args []string) {
 			log.Panicln("File does not exist.")
 		}
 		isDirectory = info.IsDir()
+		if !isDirectory {
+			filesize = info.Size()
+		}
 		if isDirectory {
 			log.Infoln("Sender started (directory mode)...")
 			log.Debugf("Directory: %s\n", file)
@@ -121,6 +128,11 @@ func Connection(cmd *cobra.Command, args []string) {
 			log.Infoln("Sender started...")
 			log.Debugf("Fileinfo: %#v\n", info)
 		}
+	}
+
+	// If TUI is enabled and not in verbose mode, show TUI welcome
+	if !noTUI && !verbose {
+		showTUIWelcome(isOffer, file, filesize)
 	}
 	// Prepare ICE gathering options
 	iceOptions := webrtc.ICEGatherOptions{
@@ -306,4 +318,16 @@ func Connection(cmd *cobra.Command, args []string) {
 	}
 
 	select {}
+}
+
+// showTUIWelcome displays a welcome screen using the TUI
+func showTUIWelcome(isOffer bool, filename string, filesize int64) {
+	// Create a simple welcome model
+	m := tui.NewModel(isOffer, filename, filesize)
+
+	// Just show the initial view without running the full program
+	// This is a simple static display for Phase 2
+	// Full integration with real-time updates will come in future phases
+	fmt.Println(m.View())
+	fmt.Println()
 }
