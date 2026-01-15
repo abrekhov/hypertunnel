@@ -15,10 +15,10 @@ import (
 
 // ConnectionModel represents the connection screen
 type ConnectionModel struct {
-	spinner  spinner.Model
 	filename string
 	localSDP string
 	status   string
+	spinner  spinner.Model
 	filesize int64
 	width    int
 	height   int
