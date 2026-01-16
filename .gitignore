@@ -2,5 +2,16 @@ wip
 build
 bin
 Makefile
-ht*
-*txt
+dist
+
+# Binary files
+ht
+ht_*
+*.exe
+
+# Test files
+*.test
+
+# Log and temporary files
+*.log
+*.tmp
