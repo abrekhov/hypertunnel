@@ -1,5 +1,46 @@
 # HyperTunnel
 
+P2P secure file transfer tool using WebRTC. Transfer files directly between machines behind NAT without a server.
+
+## Quick Start
+
+**From Source (recommended for testing):**
+
+```bash
+# Clone and build
+git clone https://github.com/abrekhov/hypertunnel
+cd hypertunnel
+go build -o ht
+
+# Sender (machine with the file)
+./ht -f myfile.txt
+
+# Receiver (other machine)
+./ht
+```
+
+**Example: Transfer between macOS and cloud VM:**
+
+```bash
+# On your Mac (sender):
+./ht -f important-data.tar.gz
+# Copy the printed base64 signal
+
+# On the cloud VM (receiver):
+./ht
+# Paste the Mac's signal, press Enter twice
+# Copy the VM's signal back to Mac
+
+# On Mac: paste VM's signal, press Enter twice
+# Transfer starts automatically
+```
+
+**Tips:**
+- Both machines need internet access
+- Press Enter twice after pasting a signal
+- Use `--auto-accept` to skip confirmation prompts
+- Use `-v` for verbose debug output
+
 ## Installation
 
 ### Debian/Ubuntu (APT)
@@ -128,16 +169,25 @@ Both computers must have access to the Internet!
 
 ## RoadMap
 
-- [X] Encrypt file with key as stream
-- [X] Decrypt file with key as stream
-- [X] TCP/IP Connection through stun/turn/ice
+**Completed:**
+- [X] Encrypt/decrypt file with key as stream (AES-256-CTR)
+- [X] WebRTC P2P connection through STUN/TURN/ICE
 - [X] ORTC connection behind NAT
-- [X] Move one file between candidates behind NAT
-- [X] Directory transfer with automatic archiving
-- [X] Progress tracking and checksums
-- [X] Tests infrastructure
-- [ ] Start candidates in any order
-- [ ] Terminal UI with progress bars (Phase 2)
+- [X] Single file transfer between peers
+- [X] Directory transfer with automatic archiving (tar.gz)
+- [X] Progress tracking and SHA-256 checksums
+- [X] Auto-accept mode (`--auto-accept`)
+- [X] File overwrite protection with prompts
+- [X] Tests infrastructure (unit + integration)
+- [X] Multi-platform packaging (DEB/RPM/APK)
+- [X] Basic TUI framework (Bubble Tea)
+
+**In Progress:**
+- [ ] Start candidates in any order (symmetric connection)
+- [ ] Terminal UI polish (keep signals copyable!)
+
+**Planned:**
 - [ ] Resumable transfers
-- [ ] SSH server behind NAT
+- [ ] SSH tunnel mode
 - [ ] Benchmarks
+- [ ] Homebrew/Scoop packaging
