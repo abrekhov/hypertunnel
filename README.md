@@ -2,19 +2,72 @@
 
 ## Installation
 
+### Debian/Ubuntu (APT)
+
+Download the latest `.deb` package from the [releases page](https://github.com/abrekhov/hypertunnel/releases):
+
 ```bash
+# Download the latest .deb package
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.deb
+
+# Install with apt
+sudo apt install ./hypertunnel_VERSION_linux_amd64.deb
+
+# Or use dpkg directly
+sudo dpkg -i hypertunnel_VERSION_linux_amd64.deb
+```
+
+### RPM-based Linux (Fedora, RHEL, CentOS)
+
+```bash
+# Download the latest .rpm package
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel-VERSION-amd64.rpm
+
+# Install with dnf/yum
+sudo dnf install ./hypertunnel-VERSION-amd64.rpm
+# or
+sudo yum install ./hypertunnel-VERSION-amd64.rpm
+```
+
+### Alpine Linux
+
+```bash
+# Download the latest .apk package
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.apk
+
+# Install with apk
+sudo apk add --allow-untrusted ./hypertunnel_VERSION_linux_amd64.apk
+```
+
+### macOS / Linux (Archives)
+
+```bash
+# Download and extract the archive for your platform
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_OS_ARCH.tar.gz
+tar -xzf hypertunnel_VERSION_OS_ARCH.tar.gz
+sudo mv ht /usr/local/bin/
+```
+
+### Windows
+
+Download the `.zip` archive from the [releases page](https://github.com/abrekhov/hypertunnel/releases) and extract `ht.exe` to your desired location. Add it to your PATH for easy access.
+
+### From Source
+
+```bash
+# Clone the repository
 git clone https://github.com/abrekhov/hypertunnel
 cd hypertunnel
 go build -o ht
 ```
 
-Or using go install (GOBIN must be set)
+Or using go install (GOBIN must be set):
 
 ```bash
 export GOPATH=$HOME/go
 export GOBIN="${GOPATH}/bin"
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
-go install github.com/abrekhov/hypertunnel
+go install github.com/abrekhov/hypertunnel@latest
 ```
 
 ## Usage
