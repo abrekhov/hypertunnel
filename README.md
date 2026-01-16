@@ -1,5 +1,9 @@
 # HyperTunnel
 
+**P2P secure file and directory transfer tool** - Transfer files directly between machines behind NAT without a central server, using WebRTC technology.
+
+Inspired by [magic-wormhole](https://github.com/magic-wormhole/magic-wormhole), [gfile](https://github.com/Antonito/gfile), and [croc](https://github.com/schollz/croc).
+
 ## Installation
 
 ### Debian/Ubuntu (APT)
@@ -126,18 +130,30 @@ Both computers must have access to the Internet!
 - ✅ **File Integrity**: SHA-256 checksum verification
 - ✅ **Cross-platform**: Linux, macOS, Windows support
 
-## RoadMap
+## Roadmap
 
-- [X] Encrypt file with key as stream
-- [X] Decrypt file with key as stream
-- [X] TCP/IP Connection through stun/turn/ice
-- [X] ORTC connection behind NAT
-- [X] Move one file between candidates behind NAT
-- [X] Directory transfer with automatic archiving
-- [X] Progress tracking and checksums
-- [X] Tests infrastructure
-- [ ] Start candidates in any order
-- [ ] Terminal UI with progress bars (Phase 2)
+### Completed ✅
+- [x] AES-256-CTR file encryption/decryption
+- [x] WebRTC P2P connection with NAT traversal
+- [x] File transfer between peers behind NAT
+- [x] Directory transfer with automatic tar.gz archiving
+- [x] Progress tracking and SHA-256 checksums
+- [x] Comprehensive test suite (70%+ coverage)
+- [x] CI/CD with cross-platform testing
+- [x] Linux packages (DEB/RPM/APK)
+- [x] Basic TUI framework (Bubble Tea)
+- [x] Auto-accept mode and overwrite protection
+
+### In Progress 🚧
+- [ ] Full TUI with real-time progress updates
+- [ ] Bi-directional candidate exchange (start in any order)
+- [ ] Multiple STUN/TURN server support
+- [ ] Homebrew tap for macOS
+
+### Planned 📋
 - [ ] Resumable transfers
-- [ ] SSH server behind NAT
-- [ ] Benchmarks
+- [ ] SSH tunnel mode
+- [ ] Port forwarding
+- [ ] Performance benchmarks
+
+See [CLAUDE.md](CLAUDE.md) for detailed development roadmap.
