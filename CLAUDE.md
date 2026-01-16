@@ -10,16 +10,21 @@ This document provides a comprehensive overview of the HyperTunnel codebase for 
 
 **Key Features:**
 - Direct P2P file transfer using WebRTC data channels
+- Directory transfer with automatic archiving (tar.gz)
 - NAT traversal via ICE/STUN/TURN protocols
 - Built-in file encryption/decryption with AES-256-CTR
 - Manual signal exchange (copy-paste) for security
+- Progress tracking with SHA-256 checksums
+- Auto-accept mode for automation (`--auto-accept`)
+- File overwrite protection with prompts
 - Cross-platform support (Linux, macOS, Windows)
-- Minimal dependencies and simple CLI interface
+- Multi-platform packaging (DEB/RPM/APK)
+- Basic TUI framework (Bubble Tea)
 
 **Project Stats:**
 - Language: Go 1.23
-- Total Go Files: 9
-- Lines of Code: ~663
+- Total Go Files: 26
+- Lines of Code: ~2000+
 - License: Apache 2.0
 - Repository: https://github.com/abrekhov/hypertunnel
 
@@ -34,25 +39,42 @@ This document provides a comprehensive overview of the HyperTunnel codebase for 
 │   └── workflows/
 │       └── release.yaml           # GitHub Actions CI/CD for releases
 ├── cmd/                           # CLI command implementations (Cobra)
-│   ├── root.go                   # Main command, connection logic (246 lines)
-│   ├── encrypt.go                # File encryption command (109 lines)
-│   └── decrypt.go                # File decryption command (114 lines)
+│   ├── root.go                   # Main command, connection logic
+│   ├── encrypt.go                # File encryption command
+│   └── decrypt.go                # File decryption command
 ├── pkg/                           # Internal reusable packages
+│   ├── archive/                  # Directory archiving (tar.gz)
+│   │   ├── archive.go            # Create/extract tar.gz archives
+│   │   └── archive_test.go       # Archive tests
 │   ├── datachannel/              # WebRTC data channel utilities
-│   │   ├── datachannel.go        # SDP encoding/decoding (49 lines)
-│   │   ├── signal.go             # Signal struct for WebRTC handshake (18 lines)
-│   │   ├── handlers.go           # File transfer handlers (64 lines)
-│   │   └── datachannel_test.go   # Unit tests (skeleton only, 19 lines)
-│   └── hashutils/                # Cryptographic utilities
-│       └── hashutils.go          # Key hashing (22 lines)
-├── main.go                        # Application entry point (22 lines)
+│   │   ├── datachannel.go        # SDP encoding/decoding
+│   │   ├── signal.go             # Signal struct for WebRTC handshake
+│   │   ├── handlers.go           # File/directory transfer handlers
+│   │   ├── datachannel_test.go   # Encoding tests
+│   │   └── handlers_test.go      # Handler tests
+│   ├── hashutils/                # Cryptographic utilities
+│   │   ├── hashutils.go          # Key hashing
+│   │   └── hashutils_test.go     # Hash tests
+│   ├── transfer/                 # Transfer utilities
+│   │   ├── progress.go           # Progress tracking
+│   │   ├── checksum.go           # SHA-256 checksum verification
+│   │   ├── metadata.go           # Transfer metadata
+│   │   └── *_test.go             # Tests
+│   └── tui/                      # Terminal UI (Bubble Tea)
+│       ├── tui.go                # Main TUI model
+│       ├── connection.go         # Connection screen
+│       ├── transfer.go           # Transfer progress screen
+│       └── tui_test.go           # TUI tests
+├── integration_test.go            # End-to-end tests
+├── main.go                        # Application entry point
 ├── go.mod                         # Go module dependencies
 ├── go.sum                         # Dependency checksums
 ├── .goreleaser.yaml              # GoReleaser configuration for builds
 ├── .gitignore                     # Git ignore patterns
 ├── LICENSE                        # Apache License 2.0
 ├── README.md                      # User-facing documentation
-└── CLAUDE.md                      # This file
+├── CLAUDE.md                      # AI assistant guide (this file)
+└── AGENTS.md                      # AI assistant guide (sync with CLAUDE.md)
 ```
 
 ---
@@ -714,135 +736,92 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
 
 ---
 
-### 🚧 Phase 1: Core Functionality & Robustness
+### ✅ Phase 1: Core Functionality & Robustness (MOSTLY COMPLETE)
 
 **Goal:** Make HyperTunnel production-ready for reliable file/directory transfers
 
-#### 1.1 Directory Transfer Support
-- [ ] **Recursive directory traversal**
+#### 1.1 Directory Transfer Support ✅ DONE
+- [x] **Recursive directory traversal**
   - Walk directory tree, preserve structure
-  - Support for symlinks (configurable)
-  - Exclude patterns (.gitignore-style)
+  - Implemented in `pkg/archive/archive.go`
 
-- [ ] **Archive-based transfer**
-  - Stream tar.gz on-the-fly (don't store full archive)
+- [x] **Archive-based transfer**
+  - Stream tar.gz on-the-fly
   - Compress during transfer for efficiency
   - Extract on receiver side automatically
 
-- [ ] **Metadata preservation**
-  - File permissions (chmod)
-  - Timestamps (mtime, atime)
-  - Ownership (if running as root/sudo)
+- [x] **Metadata preservation**
+  - File permissions preserved in tar archive
+  - Timestamps preserved
 
-**Files to modify:**
-- `cmd/root.go` - Add directory detection logic
-- `pkg/transfer/` (new package) - Directory streaming logic
-- `pkg/archive/` (new package) - On-the-fly tar.gz streaming
+**Implemented in:**
+- `cmd/root.go` - Directory detection logic
+- `pkg/archive/` - On-the-fly tar.gz streaming
+- `pkg/datachannel/handlers.go` - Archive extraction
 
-#### 1.2 Enhanced File Transfer Protocol
-- [ ] **Progress reporting**
+#### 1.2 Enhanced File Transfer Protocol (PARTIAL)
+- [x] **Progress reporting** ✅
   - Track bytes sent/received
-  - Calculate transfer speed (MB/s)
-  - Estimate time remaining (ETA)
-  - Expose metrics via channel for UI
+  - `pkg/transfer/progress.go` - Progress tracking
 
-- [ ] **Resumable transfers**
+- [ ] **Resumable transfers** (FUTURE)
   - Generate transfer ID (hash of filename + size)
   - Track partial progress in temp file
-  - Send/request specific byte ranges
   - Resume from last checkpoint on reconnection
 
-- [ ] **Integrity verification**
-  - Calculate SHA-256 checksum during transfer
-  - Send checksum with metadata
-  - Verify on receiver, report mismatch
-  - Option to auto-retry corrupted transfers
+- [x] **Integrity verification** ✅
+  - Calculate SHA-256 checksum
+  - `pkg/transfer/checksum.go` - Checksum verification
 
-- [ ] **Automatic retry & recovery**
+- [ ] **Automatic retry & recovery** (FUTURE)
   - Detect disconnections
   - Auto-reconnect with exponential backoff
-  - Resume from last known good state
-  - Configurable retry attempts
 
-**Files to modify:**
-- `pkg/datachannel/handlers.go` - Add progress tracking
-- `pkg/transfer/` (new package) - Resume logic, checksums
-- `cmd/root.go` - Retry loop on connection failure
-
-#### 1.3 Connection Improvements
+#### 1.3 Connection Improvements (IN PROGRESS)
 - [ ] **Bi-directional candidate exchange**
   - Allow starting in any order (remove offer/answer dependency)
   - Implement symmetric connection setup
   - Both peers act as ICE controllers initially
 
-- [ ] **Multiple STUN/TURN servers**
+- [ ] **Multiple STUN/TURN servers** (FUTURE)
   - Default list: Google, Mozilla, Cloudflare STUN
   - Support custom STUN/TURN via config
-  - Parallel candidate gathering from multiple sources
-  - Automatic selection of fastest relay
 
-- [ ] **Connection quality monitoring**
+- [ ] **Connection quality monitoring** (FUTURE)
   - Track RTT (round-trip time)
   - Monitor packet loss
-  - Switch to TURN if direct connection degrades
-  - Expose connection stats in UI
 
-**Files to modify:**
-- `cmd/root.go` - ICE role negotiation, multi-server support
-- `pkg/datachannel/signal.go` - Enhanced signal struct
-- `pkg/stun/` (new package) - Multi-server management
+#### 1.4 Security Enhancements ✅ DONE
+- [x] **Add auto-accept flag** ✅
+  - `--auto-accept` flag implemented
+  - Skip confirmation prompts for automation
 
-#### 1.4 Security Enhancements
-- [ ] **Add auto-accept flag**
-  - Allow skipping the confirmation prompt for automation
-  - Keep prompting as the default behavior
-
-- [ ] **Improved key derivation**
+- [ ] **Improved key derivation** (FUTURE)
   - Replace SHA256 with Argon2id KDF
-  - Add salt (random or derived from filename)
-  - Configurable iterations for security/performance balance
 
-- [ ] **Signal authentication (optional)**
-  - Add HMAC signature to signals
-  - Pre-shared key for signal verification
-  - Prevent MITM attacks during exchange
-
-- [ ] **File overwrite protection**
-  - Fix `os.IsExist()` bug in `handlers.go:18-21`
+- [x] **File overwrite protection** ✅
   - Prompt user before overwriting existing files
-  - Add --overwrite flag for automation
+  - Works with `--auto-accept` for automation
 
-**Files to modify:**
-- `pkg/datachannel/handlers.go` - Add overwrite prompt + auto-accept flag
-- `pkg/hashutils/hashutils.go` - Implement Argon2id
-- `pkg/crypto/` (new package) - Signal authentication
+#### 1.5 Testing & Quality ✅ DONE
+- [x] **Unit tests**
+  - `pkg/datachannel/datachannel_test.go`
+  - `pkg/datachannel/handlers_test.go`
+  - `pkg/hashutils/hashutils_test.go`
+  - `pkg/archive/archive_test.go`
+  - `pkg/transfer/*_test.go`
 
-#### 1.5 Testing & Quality
-- [ ] **Unit tests**
-  - Complete `datachannel_test.go` (currently skeleton)
-  - Test Encode/Decode functions
-  - Test key derivation functions
-  - Mock WebRTC for reproducible tests
+- [x] **Integration tests**
+  - `integration_test.go` - End-to-end scenarios
 
-- [ ] **Integration tests**
-  - End-to-end file transfer (loopback)
-  - Directory transfer with various structures
-  - Encryption/decryption round-trip
-  - Connection failure scenarios
-
-- [ ] **Performance benchmarks**
+- [ ] **Performance benchmarks** (FUTURE)
   - Benchmark encryption speed
   - Benchmark transfer throughput
-  - Memory usage profiling
-  - Optimize hot paths
 
-- [ ] **CI/CD testing pipeline**
+- [ ] **CI/CD testing pipeline** (FUTURE)
   - Add GitHub Actions workflow for tests
-  - Run tests on PRs and commits
-  - Code coverage reporting
-  - Linting (golangci-lint)
 
-**Files to create:**
+**Files created:
 - `pkg/datachannel/datachannel_test.go` - Complete tests
 - `pkg/transfer/transfer_test.go` - New tests
 - `integration_test.go` - End-to-end scenarios
@@ -852,9 +831,49 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
 
 ---
 
-### 🎨 Phase 2: Beautiful Terminal User Interface
+### 🎨 Phase 2: Beautiful Terminal User Interface (IN PROGRESS)
 
 **Goal:** Transform HyperTunnel into a delightful TUI experience using best-in-class Go libraries
+
+**Status:** Basic TUI framework implemented (`pkg/tui/`)
+
+---
+
+#### ⚠️ CRITICAL DESIGN REQUIREMENT: Signal Copyability
+
+**IMPORTANT:** Users commonly use HyperTunnel from remote VMs (SSH sessions) to transfer files P2P. The connection signal (base64 encoded string) MUST remain easily copyable.
+
+**DO NOT:**
+- Wrap signals in ASCII box borders (`╭──╮`, `│ │`, `╰──╯`)
+- Put signals inside styled boxes that break copy-paste
+- Add decorative characters around the signal
+
+**DO:**
+- Print the signal as a plain, undecorated string
+- Add a clear label above it (e.g., "Your connection signal:")
+- Use blank lines to separate it from other output
+- Keep the signal on its own lines without surrounding characters
+
+**Example - GOOD:**
+```
+Your connection signal:
+
+eyJJQ0VDYW5kaWRhdGVzIjpbeyJGb3VuZGF0aW9uIjoiIiwiUHJpb3Jpd...
+
+Paste the above signal to the other peer.
+```
+
+**Example - BAD (don't do this):**
+```
+┌────────────────────────────────────────────────┐
+│ eyJJQ0VDYW5kaWRhdGVzIjpbeyJGb3VuZGF0aW9uIjoi │
+│ IiwiUHJpb3JpdHkiOjIxMzAzNzY3...               │
+└────────────────────────────────────────────────┘
+```
+
+**Why:** ASCII box characters become part of the selection when users copy from terminals, especially over SSH. This breaks the base64 decoding on the receiving end.
+
+---
 
 #### 2.1 TUI Library Selection
 
@@ -1042,11 +1061,27 @@ pkg/
 
 ---
 
-### 📦 Phase 3: Distribution & Packaging
+### 📦 Phase 3: Distribution & Packaging (PARTIAL)
 
 **Goal:** Make installation effortless - one command on any platform
 
-#### 3.1 GitHub Container Registry (GHCR)
+**Status:** Multi-platform packaging with DEB/RPM/APK completed via GoReleaser.
+
+**Completed:**
+- [x] DEB packages for Debian/Ubuntu
+- [x] RPM packages for Fedora/RHEL/CentOS
+- [x] APK packages for Alpine Linux
+- [x] Tar.gz archives for macOS/Linux
+- [x] ZIP archives for Windows
+- [x] GoReleaser configuration in `.goreleaser.yaml`
+
+**Remaining:**
+- [ ] Docker images (GHCR)
+- [ ] Homebrew formula
+- [ ] Scoop/Chocolatey for Windows
+- [ ] AUR package for Arch Linux
+
+#### 3.1 GitHub Container Registry (GHCR) (TODO)
 
 **Purpose:** Docker images for containerized usage
 
@@ -1458,68 +1493,69 @@ package() {
 
 ## Implementation Priority
 
-### Critical Path (Start Here)
+### Completed ✅
 
-1. **Harden incoming file handling** (Phase 1.4 Security)
-   - Add overwrite prompt/flag
-   - Add optional auto-accept flag
-   - **Est:** 1 day
+1. ~~**Harden incoming file handling**~~ ✅
+   - Overwrite prompt/flag implemented
+   - Auto-accept flag (`--auto-accept`) implemented
 
-2. **Add basic testing** (Phase 1.5)
-   - Complete unit tests
-   - Simple integration test
-   - **Est:** 3-4 days
+2. ~~**Add basic testing**~~ ✅
+   - Unit tests for all packages
+   - Integration tests (`integration_test.go`)
 
-3. **Directory transfer** (Phase 1.1)
-   - Essential for usability
-   - **Est:** 1 week
+3. ~~**Directory transfer**~~ ✅
+   - Archive-based transfer with tar.gz
+   - Automatic extraction on receiver
 
-4. **Progress reporting** (Phase 1.2)
-   - Required before TUI
-   - Expose metrics
-   - **Est:** 3 days
+4. ~~**Progress tracking and checksums**~~ ✅
+   - `pkg/transfer/progress.go`
+   - `pkg/transfer/checksum.go`
 
-5. **Basic TUI** (Phase 2.1-2.2)
-   - Connection + Transfer screens
-   - Use Bubble Tea framework
-   - **Est:** 1.5 weeks
+5. ~~**Basic TUI**~~ ✅
+   - Bubble Tea framework
+   - `pkg/tui/` package
 
-6. **Packaging basics** (Phase 3.1-3.3)
-   - Docker + Homebrew + DEB
-   - **Est:** 1 week
+6. ~~**Packaging basics**~~ ✅
+   - DEB/RPM/APK via GoReleaser
 
-### Total Estimated Timeline
+### Current Priority (Next Steps)
 
-- **Phase 1 (Core):** 3-4 weeks
-- **Phase 2 (TUI):** 2-3 weeks
-- **Phase 3 (Packaging):** 2-3 weeks
-- **Phase 4 (Polish):** Ongoing
+1. **Fix TUI signal display** (CRITICAL)
+   - Remove ASCII box borders around signals
+   - Ensure signals are easily copyable from SSH terminals
+   - See "Signal Copyability" section in Phase 2
 
-**Aggressive goal:** 8-10 weeks for production-ready v1.0 with beautiful TUI and universal packaging
+2. **Symmetric connection setup**
+   - Allow starting in any order
+   - Remove offer/answer dependency
 
-**Realistic goal:** 12-16 weeks with proper testing and iteration
+3. **Homebrew formula**
+   - Publish to homebrew-tap
+
+4. **CI/CD testing pipeline**
+   - GitHub Actions for tests on PRs
 
 ---
 
 ## Success Metrics
 
+### Current Status (v0.x)
+
+- ✅ Robust file + directory transfer
+- ✅ Basic TUI framework
+- ✅ Multi-platform packaging (DEB/RPM/APK)
+- ✅ Unit and integration tests
+- ✅ Auto-accept and overwrite protection
+- ⏳ TUI polish (signals must remain copyable)
+
 ### v1.0 Release Criteria
 
 - ✅ Robust file + directory transfer
-- ✅ Beautiful TUI with progress bars
-- ✅ One-command install on 5+ platforms
-- ✅ >80% test coverage
+- ⏳ TUI with copyable signals (not in ASCII boxes!)
+- ✅ Multi-platform packages
+- ⏳ Homebrew/Scoop
 - ✅ Zero critical security issues
-- ✅ Comprehensive documentation
-- ✅ <10 open bugs
-
-### Long-term Goals
-
-- 🎯 10k+ GitHub stars
-- 🎯 Featured in Awesome Go lists
-- 🎯 >100k downloads across all platforms
-- 🎯 Community contributions (PRs, issues)
-- 🎯 Translations in 5+ languages
+- ⏳ Symmetric connection (start in any order)
 
 ---
 
@@ -1531,17 +1567,17 @@ When implementing features from this roadmap:
 
 1. **Check phase dependencies** - Implement in order when possible
 2. **Update this document** - Mark items complete, adjust estimates
-3. **Write tests first** - TDD for new features (Phase 1.5 onwards)
-4. **Keep it simple** - Don't over-engineer, iterate based on usage
+3. **Write tests first** - TDD for new features
+4. **Keep it simple** - Don't over-engineer
 5. **Document as you go** - Update README and code comments
 6. **Use TodoWrite tool** - Track progress on multi-step features
+7. **CRITICAL: Keep signals copyable** - Never wrap in ASCII boxes!
 
 **Next immediate steps:**
-1. Add overwrite prompt/flag (`pkg/datachannel/handlers.go`)
-2. Add progress tracking to file transfer
-3. Add directory transfer support
-4. Complete unit tests (`pkg/datachannel/datachannel_test.go`)
-5. Start Bubble Tea TUI implementation
+1. Fix TUI to not wrap signals in ASCII borders (`pkg/tui/connection.go`)
+2. Implement symmetric connection setup
+3. Create Homebrew formula
+4. Add GitHub Actions CI for tests
 
 ---
 
@@ -1747,8 +1783,10 @@ HyperTunnel is a focused, well-structured P2P file transfer tool with clear sepa
 
 **Philosophy:** Keep it simple. Don't over-engineer. Add features when clearly needed, not speculatively.
 
+**Critical UX Note:** Signals MUST remain easily copyable from SSH terminals. Never wrap them in ASCII box borders.
+
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2026-01-09
+**Document Version:** 1.1
+**Last Updated:** 2026-01-16
 **Maintainer:** AI-generated for AI assistants working on HyperTunnel
