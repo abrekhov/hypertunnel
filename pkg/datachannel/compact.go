@@ -59,6 +59,8 @@ func candidateTypeToString(t byte) webrtc.ICECandidateType {
 // stringToCandidateType converts WebRTC type string to our compact encoding
 func stringToCandidateType(t webrtc.ICECandidateType) byte {
 	switch t {
+	case webrtc.ICECandidateTypeHost:
+		return candTypeHost
 	case webrtc.ICECandidateTypeSrflx:
 		return candTypeSrflx
 	case webrtc.ICECandidateTypePrflx:
