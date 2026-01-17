@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,12 @@ func TestAskForConfirmation(t *testing.T) {
 		input := strings.NewReader("\n")
 		result := askForConfirmation("Test question", input)
 		assert.True(t, result, "Should default to yes on empty input")
+	})
+
+	t.Run("returns true when timeout elapses", func(t *testing.T) {
+		input := strings.NewReader("")
+		result := askForConfirmationWithTimeout("Test question", input, 5*time.Millisecond)
+		assert.True(t, result, "Should auto-accept after timeout")
 	})
 
 	t.Run("returns false after 3 invalid attempts", func(t *testing.T) {
