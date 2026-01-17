@@ -58,15 +58,15 @@ func TestAskForConfirmation(t *testing.T) {
 	})
 
 	t.Run("handles empty input and retries", func(t *testing.T) {
-		// Empty lines followed by a valid response
-		input := strings.NewReader("\n\ny\n")
+		// Empty line defaults to yes
+		input := strings.NewReader("\n")
 		result := askForConfirmation("Test question", input)
-		assert.True(t, result, "Should handle empty input and retry")
+		assert.True(t, result, "Should default to yes on empty input")
 	})
 
 	t.Run("returns false after 3 invalid attempts", func(t *testing.T) {
-		// Provide 3 empty inputs (should exhaust retries)
-		input := strings.NewReader("\n\n\n\n")
+		// Provide 3 invalid inputs (should exhaust retries)
+		input := strings.NewReader("maybe\nnope\n?\n")
 		result := askForConfirmation("Test question", input)
 		assert.False(t, result, "Should return false after exhausting retries")
 	})
@@ -79,7 +79,7 @@ func TestAskForConfirmation(t *testing.T) {
 
 	t.Run("returns false for invalid input after retries", func(t *testing.T) {
 		// Invalid inputs that exhaust retries
-		input := strings.NewReader("maybe\n\n\n")
+		input := strings.NewReader("maybe\nnope\n?\n")
 		result := askForConfirmation("Test question", input)
 		assert.False(t, result, "Should return false for invalid input")
 	})

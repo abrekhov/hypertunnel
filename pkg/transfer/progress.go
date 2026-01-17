@@ -185,3 +185,27 @@ func FormatDuration(d time.Duration) string {
 	seconds := int(d.Seconds()) % 60
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
+
+// FormatPercent renders a percentage with no decimals.
+func FormatPercent(pct float64) string {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return fmt.Sprintf("%.0f%%", pct)
+}
+
+// FormatProgressLine renders a single-line progress summary.
+func FormatProgressLine(prefix string, metrics *ProgressMetrics) string {
+	pct := FormatPercent(metrics.Percentage)
+	current := FormatSize(metrics.TransferredBytes)
+	total := FormatSize(metrics.TotalBytes)
+	speed := FormatSpeed(metrics.BytesPerSecond)
+	eta := FormatDuration(time.Duration(metrics.ETASeconds * float64(time.Second)))
+	if metrics.TotalBytes == 0 {
+		return fmt.Sprintf("%s: %s | %s | ETA %s", prefix, current, speed, eta)
+	}
+	return fmt.Sprintf("%s: %s | %s / %s | %s | ETA %s", prefix, pct, current, total, speed, eta)
+}

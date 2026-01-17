@@ -73,14 +73,16 @@ func Decode(in string, obj interface{}) {
 func MustReadStdin() string {
 	var sdpOffer string
 	prompt := &survey.Multiline{
-		Message: "Paste your SDP offer (end with Ctrl+D):",
+		Message: "Paste the peer signal (end with Ctrl+D):",
 	}
 	err := survey.AskOne(prompt, &sdpOffer)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return ""
 	}
-	fmt.Println("Received SDP Offer:")
-	fmt.Println(sdpOffer)
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		fmt.Println("Received peer signal:")
+		fmt.Println(sdpOffer)
+	}
 	return sdpOffer
 }
