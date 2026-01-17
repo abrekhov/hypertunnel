@@ -102,6 +102,24 @@ func initConfig() {
 	}
 }
 
+func decideICERole(localICE webrtc.ICEParameters, remoteICE webrtc.ICEParameters, localDTLS webrtc.DTLSParameters, remoteDTLS webrtc.DTLSParameters) webrtc.ICERole {
+	localKey := localICE.UsernameFragment + localICE.Password
+	remoteKey := remoteICE.UsernameFragment + remoteICE.Password
+	if len(localDTLS.Fingerprints) > 0 {
+		localKey += localDTLS.Fingerprints[0].Value
+	}
+	if len(remoteDTLS.Fingerprints) > 0 {
+		remoteKey += remoteDTLS.Fingerprints[0].Value
+	}
+	if localKey > remoteKey {
+		return webrtc.ICERoleControlling
+	}
+	if localKey < remoteKey {
+		return webrtc.ICERoleControlled
+	}
+	return webrtc.ICERoleControlling
+}
+
 func Connection(cmd *cobra.Command, args []string) {
 	datachannel.AutoAccept = autoAccept
 
@@ -193,17 +211,13 @@ func Connection(cmd *cobra.Command, args []string) {
 	// Waiting for encoded signal from other side
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
+	log.Infoln("Remote signal received.")
 
-	iceRole := webrtc.ICERoleControlled
-	if isOffer {
-		iceRole = webrtc.ICERoleControlling
-	}
-	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
-	cobra.CheckErr(err)
-
-	log.Debugln("Start ICE TR")
+	iceRole := decideICERole(iceParams, remoteSignal.ICEParameters, dtlsParams, remoteSignal.DTLSParameters)
+	log.Debugf("ICE role selected: %s", iceRole.String())
 	// Start the ICE transport
 	err = ice.Start(gatherer, remoteSignal.ICEParameters, &iceRole)
+
 	cobra.CheckErr(err)
 
 	log.Debugln("Start DTLS")
@@ -215,7 +229,7 @@ func Connection(cmd *cobra.Command, args []string) {
 	// Start the SCTP transport
 	err = sctp.Start(remoteSignal.SCTPCapabilities)
 	cobra.CheckErr(err)
-	// Construct the data channel as the offerer
+	// Construct the data channel as the sender
 	if isOffer {
 		var id uint16 = 1
 		info, err := os.Stat(file)
