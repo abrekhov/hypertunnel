@@ -92,7 +92,7 @@ func TestFileOverwriteCheck(t *testing.T) {
 	t.Run("detects existing file correctly", func(t *testing.T) {
 		// Create a test file
 		testFile := filepath.Join(tempDir, "existing-file.txt")
-		err := os.WriteFile(testFile, []byte("existing content"), 0644)
+		err := os.WriteFile(testFile, []byte("existing content"), 0600) // #nosec G306 - test file
 		require.NoError(t, err)
 
 		// Check if file exists
@@ -133,18 +133,19 @@ func TestFileOverwriteCheck(t *testing.T) {
 	t.Run("demonstrates correct file existence check", func(t *testing.T) {
 		// Create a test file
 		existingFile := filepath.Join(tempDir, "test-exists.txt")
-		err := os.WriteFile(existingFile, []byte("test"), 0644)
+		err := os.WriteFile(existingFile, []byte("test"), 0600) // #nosec G306 - test file
 		require.NoError(t, err)
 
 		// CORRECT way to check if file exists:
 		_, err = os.Stat(existingFile)
-		if err == nil {
+		switch {
+		case err == nil:
 			// File exists
 			t.Log("✓ Correct: File exists when err == nil")
-		} else if os.IsNotExist(err) {
+		case os.IsNotExist(err):
 			// File does not exist
 			t.Error("File should exist")
-		} else {
+		default:
 			// Other error (permission, etc.)
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -187,9 +188,9 @@ func TestFileOperations(t *testing.T) {
 		require.True(t, os.IsNotExist(err), "File should not exist initially")
 
 		// Create the file
-		fd, err := os.Create(newFile)
+		fd, err := os.Create(newFile) // #nosec G304 - test file path from t.TempDir
 		require.NoError(t, err)
-		defer fd.Close()
+		defer func() { _ = fd.Close() }()
 
 		// Write some data
 		_, err = fd.Write([]byte("test data"))
@@ -205,7 +206,7 @@ func TestFileOperations(t *testing.T) {
 		existingFile := filepath.Join(tempDir, "existing.txt")
 
 		// Create initial file
-		err := os.WriteFile(existingFile, []byte("original"), 0644)
+		err := os.WriteFile(existingFile, []byte("original"), 0600) // #nosec G306 - test file
 		require.NoError(t, err)
 
 		// Check if file exists - CORRECT way

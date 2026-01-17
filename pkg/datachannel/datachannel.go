@@ -2,6 +2,8 @@
  *   Copyright (c) 2021 Anton Brekhov
  *   All rights reserved.
  */
+
+// Package datachannel provides WebRTC data channel utilities for signal exchange and file transfer.
 package datachannel
 
 import (

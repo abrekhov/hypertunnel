@@ -2,6 +2,8 @@
  *   Copyright (c) 2021 Anton Brekhov
  *   All rights reserved.
  */
+
+// Package tui provides terminal user interface components for HyperTunnel.
 package tui
 
 import (

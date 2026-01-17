@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// FileTransferHandler handles incoming file transfers on a WebRTC data channel.
 func FileTransferHandler(channel *webrtc.DataChannel) {
 	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 	log.Debugf("DataChannel Opts: %#v\n", channel)
@@ -157,6 +158,7 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 	})
 }
 
+// AutoAccept controls whether to automatically accept incoming file transfers without prompting.
 var AutoAccept bool
 
 func askForConfirmation(s string, in io.Reader) bool {

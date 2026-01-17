@@ -5,6 +5,7 @@
 package datachannel
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"os"
@@ -210,15 +211,6 @@ func TestEncodeDecode_EdgeCases(t *testing.T) {
 	})
 }
 
-// Helper function to decode base64 and return JSON string
-func mustDecodeBase64JSON(encoded string) string {
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		panic(err)
-	}
-	return string(decoded)
-}
-
 func BenchmarkEncode(b *testing.B) {
 	signal := createTestSignal()
 
@@ -262,7 +254,7 @@ func TestDecode_InvalidJSONExits(t *testing.T) {
 	runHelperProcess(t, "decode-invalid-json")
 }
 
-func TestHelperProcess(t *testing.T) {
+func TestHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
@@ -290,7 +282,7 @@ func TestHelperProcess(t *testing.T) {
 func runHelperProcess(t *testing.T, mode string) {
 	t.Helper()
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess", "--", mode)
+	cmd := exec.CommandContext(context.Background(), os.Args[0], "-test.run=TestHelperProcess", "--", mode) // #nosec G204 - test helper, not user input
 	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 	err := cmd.Run()
 	if err == nil {
