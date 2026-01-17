@@ -65,9 +65,9 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 				targetPath)
 		}
 
-		accept := askForConfirmation(fmt.Sprintf("Receive %s %s?",
+		accept := askForConfirmationWithTimeout(fmt.Sprintf("Receive %s %s?",
 			map[bool]string{true: "directory", false: "file"}[isArchive],
-			targetPath), os.Stdin)
+			targetPath), os.Stdin, AcceptTimeout)
 		if !accept {
 			if log.IsLevelEnabled(log.InfoLevel) {
 				log.Infoln("Transfer declined; ignoring incoming data channel.")
@@ -83,9 +83,9 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 			if log.IsLevelEnabled(log.DebugLevel) {
 				log.Infof("Existing %s detected: prompting for overwrite", targetPath)
 			}
-			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
+			overwrite := askForConfirmationWithTimeout(fmt.Sprintf("%s %s exists. Overwrite?",
 				map[bool]string{true: "directory", false: "file"}[isArchive],
-				targetPath), os.Stdin)
+				targetPath), os.Stdin, AcceptTimeout)
 			if !overwrite {
 				if log.IsLevelEnabled(log.InfoLevel) {
 					log.Infoln("Overwrite declined; ignoring incoming transfer.")
@@ -233,13 +233,21 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 // AutoAccept controls whether to automatically accept incoming file transfers without prompting.
 var AutoAccept bool
 
+// AcceptTimeout controls how long to wait before auto-accepting a prompt.
+// A zero duration disables auto-accept timeouts.
+var AcceptTimeout time.Duration
+
 func askForConfirmation(s string, in io.Reader) bool {
+	return askForConfirmationWithTimeout(s, in, 0)
+}
+
+func askForConfirmationWithTimeout(s string, in io.Reader, timeout time.Duration) bool {
 	tries := 3
 	reader := bufio.NewReader(in)
 	for ; tries > 0; tries-- {
 		fmt.Printf("%s [Y/n]: ", s)
 
-		res, err := reader.ReadString('\n')
+		res, err := readLineWithTimeout(reader, timeout)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -259,4 +267,34 @@ func askForConfirmation(s string, in io.Reader) bool {
 	}
 
 	return false
+}
+
+func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) (string, error) {
+	if timeout <= 0 {
+		return reader.ReadString('\n')
+	}
+	result := make(chan string, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				result <- "\n"
+				return
+			}
+			errCh <- err
+			return
+		}
+		result <- line
+	}()
+
+	select {
+	case line := <-result:
+		return line, nil
+	case err := <-errCh:
+		return "", err
+	case <-time.After(timeout):
+		fmt.Printf("\nNo response within %s, auto-accepting.\n", timeout.Round(time.Second))
+		return "\n", nil
+	}
 }

@@ -42,15 +42,16 @@ import (
 
 // Flags
 var (
-	cfgFile    string
-	verbose    bool
-	isOffer    bool
-	file       string
-	autoAccept bool
-	noTUI      bool
-	useTUI     bool
-	autoCopy   bool
-	noCopy     bool
+	cfgFile       string
+	verbose       bool
+	isOffer       bool
+	file          string
+	autoAccept    bool
+	noTUI         bool
+	useTUI        bool
+	autoCopy      bool
+	noCopy        bool
+	autoAcceptTTL time.Duration
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -90,6 +91,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&useTUI, "tui", false, "Enable the terminal UI")
 	rootCmd.Flags().BoolVar(&autoCopy, "copy", true, "Automatically copy the connection signal when possible")
 	rootCmd.Flags().BoolVar(&noCopy, "no-copy", false, "Disable automatic signal copy")
+	rootCmd.Flags().DurationVar(&autoAcceptTTL, "accept-timeout", 20*time.Second, "Auto-accept incoming files after this timeout (0 disables)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -158,6 +160,7 @@ func printTransferSummary(action string, total int64, progress *transfer.Progres
 // Connection handles the main WebRTC P2P connection logic for file transfer.
 func Connection(_ *cobra.Command, _ []string) {
 	datachannel.AutoAccept = autoAccept
+	datachannel.AcceptTimeout = autoAcceptTTL
 	if noCopy || !term.IsTerminal(int(os.Stdout.Fd())) {
 		autoCopy = false
 	}
