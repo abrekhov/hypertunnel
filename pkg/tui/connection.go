@@ -2,6 +2,8 @@
  *   Copyright (c) 2021 Anton Brekhov
  *   All rights reserved.
  */
+
+// Package tui provides terminal user interface components for HyperTunnel.
 package tui
 
 import (
@@ -119,7 +121,7 @@ func (m *ConnectionModel) View() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("12")).
 			Padding(1, 2).
-			Width(min(m.width-4, 78))
+			Width(minInt(m.width-4, 78))
 
 		labelStyle := lipgloss.NewStyle().
 			Bold(true).
@@ -175,7 +177,7 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

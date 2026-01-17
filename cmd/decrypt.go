@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
+Copyright © 2021 Anton Brekhov <anton@abrekhov.ru>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package cmd implements the CLI commands for HyperTunnel.
 package cmd
 
 import (
@@ -48,7 +50,7 @@ func init() {
 	decryptCmd.Flags().Int32VarP(&bufferSize, "buffer", "b", 1024, "Buffer size")
 }
 
-func decryptFile(cmd *cobra.Command, args []string) {
+func decryptFile(_ *cobra.Command, args []string) {
 	// KEY Processing
 	if keyphrase == "" {
 		logrus.Fatalln("Keyphrase is empty!")
@@ -58,7 +60,7 @@ func decryptFile(cmd *cobra.Command, args []string) {
 
 	// Input file
 	filename := args[0]
-	infile, err := os.Open(filename)
+	infile, err := os.Open(filename) // #nosec G304 - file path is from user-provided flag
 	if err != nil {
 		logrus.Fatalln(err)
 	}
@@ -75,7 +77,7 @@ func decryptFile(cmd *cobra.Command, args []string) {
 	}
 
 	// Output file
-	outfile, err := os.OpenFile(filename+".dec", os.O_RDWR|os.O_CREATE, 0777)
+	outfile, err := os.OpenFile(filename+".dec", os.O_RDWR|os.O_CREATE, 0600) // #nosec G304 - file path derived from user-provided flag
 	if err != nil {
 		logrus.Fatal(err)
 	}

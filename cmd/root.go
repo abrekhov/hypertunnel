@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package cmd implements the CLI commands for HyperTunnel.
 package cmd
 
 import (
@@ -49,7 +51,7 @@ var rootCmd = &cobra.Command{
 	Use:   "ht",
 	Short: "P2P secure copy",
 	Long:  `HyperTunnel - is P2P secure copy tool. Inspired by magic-wormhole, gfile and so on...`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		if verbose {
 			log.SetLevel(log.DebugLevel)
 		}
@@ -102,7 +104,8 @@ func initConfig() {
 	}
 }
 
-func Connection(cmd *cobra.Command, args []string) {
+// Connection handles the main WebRTC P2P connection logic for file transfer.
+func Connection(_ *cobra.Command, _ []string) {
 	datachannel.AutoAccept = autoAccept
 
 	// Who receiver and who sender?

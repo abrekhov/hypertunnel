@@ -2,6 +2,8 @@
  *   Copyright (c) 2021 Anton Brekhov anton.brekhov@rsc-tech.ru
  *   All rights reserved.
  */
+
+// Package hashutils provides cryptographic hashing utilities.
 package hashutils
 
 import (

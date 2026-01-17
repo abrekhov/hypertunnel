@@ -2,6 +2,8 @@
  *   Copyright (c) 2021 Anton Brekhov
  *   All rights reserved.
  */
+
+// Package tui provides the terminal user interface for HyperTunnel.
 package tui
 
 import (
@@ -14,6 +16,7 @@ import (
 // State represents the current state of the TUI
 type State int
 
+// TUI state constants.
 const (
 	StateConnection State = iota
 	StateTransfer
