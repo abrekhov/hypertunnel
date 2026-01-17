@@ -115,14 +115,8 @@ func (m *ConnectionModel) View() string {
 	b.WriteString(statusStyle.Render(m.status))
 	b.WriteString("\n\n")
 
-	// Local SDP box
+	// Local SDP (copy-paste friendly)
 	if m.localSDP != "" {
-		boxStyle := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("12")).
-			Padding(1, 2).
-			Width(minInt(m.width-4, 78))
-
 		labelStyle := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("14"))
@@ -130,12 +124,9 @@ func (m *ConnectionModel) View() string {
 		sdpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("7"))
 
-		var sdpBox strings.Builder
-		sdpBox.WriteString(labelStyle.Render("Your connection signal:"))
-		sdpBox.WriteString("\n\n")
-		sdpBox.WriteString(sdpStyle.Render(m.localSDP))
-
-		b.WriteString(boxStyle.Render(sdpBox.String()))
+		b.WriteString(labelStyle.Render("Your connection signal:"))
+		b.WriteString("\n\n")
+		b.WriteString(sdpStyle.Render(m.localSDP))
 		b.WriteString("\n\n")
 
 		helpStyle := lipgloss.NewStyle().
@@ -175,11 +166,4 @@ func formatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

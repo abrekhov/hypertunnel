@@ -558,7 +558,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 
 ### Signal Exchange Protocol
 
-**Format:** Base64-encoded JSON
+**Format:** Compact base64-encoded HTCP (binary) with legacy JSON fallback
 
 **Structure:**
 ```json
@@ -778,7 +778,7 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Auto-reconnect with exponential backoff
 
 #### 1.3 Connection Improvements (IN PROGRESS)
-- [ ] **Bi-directional candidate exchange**
+- [x] **Bi-directional candidate exchange** ✅
   - Allow starting in any order (remove offer/answer dependency)
   - Implement symmetric connection setup
   - Both peers act as ICE controllers initially
@@ -818,8 +818,8 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Benchmark encryption speed
   - Benchmark transfer throughput
 
-- [ ] **CI/CD testing pipeline** (FUTURE)
-  - Add GitHub Actions workflow for tests
+- [x] **CI/CD testing pipeline** ✅
+  - GitHub Actions workflow for tests
 
 **Files created:
 - `pkg/datachannel/datachannel_test.go` - Complete tests
@@ -1525,15 +1525,12 @@ package() {
    - Ensure signals are easily copyable from SSH terminals
    - See "Signal Copyability" section in Phase 2
 
-2. **Symmetric connection setup**
-   - Allow starting in any order
-   - Remove offer/answer dependency
-
-3. **Homebrew formula**
+2. **Homebrew formula**
    - Publish to homebrew-tap
 
-4. **CI/CD testing pipeline**
-   - GitHub Actions for tests on PRs
+3. **Signal encoding polish**
+   - Verify compact signal format copy/paste behavior
+   - Document format and fallback behavior
 
 ---
 
@@ -1546,7 +1543,9 @@ package() {
 - ✅ Multi-platform packaging (DEB/RPM/APK)
 - ✅ Unit and integration tests
 - ✅ Auto-accept and overwrite protection
+- ✅ Compact signal encoding
 - ⏳ TUI polish (signals must remain copyable)
+
 
 ### v1.0 Release Criteria
 
@@ -1555,7 +1554,7 @@ package() {
 - ✅ Multi-platform packages
 - ⏳ Homebrew/Scoop
 - ✅ Zero critical security issues
-- ⏳ Symmetric connection (start in any order)
+- ✅ Symmetric connection (start in any order)
 
 ---
 
@@ -1575,9 +1574,8 @@ When implementing features from this roadmap:
 
 **Next immediate steps:**
 1. Fix TUI to not wrap signals in ASCII borders (`pkg/tui/connection.go`)
-2. Implement symmetric connection setup
-3. Create Homebrew formula
-4. Add GitHub Actions CI for tests
+2. Create Homebrew formula
+3. Verify compact signal format behavior
 
 ---
 
