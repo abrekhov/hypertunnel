@@ -10,6 +10,7 @@ run:
   modules-download-mode: readonly
 
 linters:
+  default: none
   enable:
     - errcheck      # Check for unchecked errors
     - govet         # Vet examines Go source code
@@ -27,43 +28,42 @@ linters:
     - gocritic      # Opinionated Go source code linter
     - revive        # Fast, configurable, extensible, flexible, and beautiful linter
 
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - shadow      # Can be noisy
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - shadow          # Can be noisy
+        - fieldalignment  # Pedantic for struct ordering
 
-  gosec:
-    excludes:
-      - G104        # Audit errors not checked (too noisy)
+    gosec:
+      excludes:
+        - G104        # Audit errors not checked (too noisy)
 
-  revive:
+    revive:
+      rules:
+        - name: var-naming
+          disabled: false
+        - name: exported
+          disabled: false
+        - name: indent-error-flow
+          disabled: false
+        - name: errorf
+          disabled: false
+
+  exclusions:
     rules:
-      - name: var-naming
-        disabled: false
-      - name: exported
-        disabled: false
-      - name: indent-error-flow
-        disabled: false
-      - name: errorf
-        disabled: false
+      # Exclude some linters from running on tests files
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
+          - gocritic
+
+      # Exclude cobra.CheckErr usage warnings
+      - text: "CheckErr"
+        linters:
+          - errcheck
 
 issues:
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - gosec
-        - unparam
-        - gocritic
-
-    # Exclude cobra.CheckErr usage warnings
-    - text: "CheckErr"
-      linters:
-        - errcheck
-
   max-same-issues: 0
   max-issues-per-linter: 0
-
-output:
-  sort-results: true
