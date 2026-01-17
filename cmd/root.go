@@ -23,13 +23,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/archive"
+
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
+	"github.com/abrekhov/hypertunnel/pkg/transfer"
 	"github.com/abrekhov/hypertunnel/pkg/tui"
+	"github.com/atotto/clipboard"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
@@ -43,6 +48,9 @@ var (
 	file       string
 	autoAccept bool
 	noTUI      bool
+	useTUI     bool
+	autoCopy   bool
+	noCopy     bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -79,6 +87,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
 	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming files and overwrites")
 	rootCmd.Flags().BoolVar(&noTUI, "no-tui", false, "Disable the terminal UI (use plain text output)")
+	rootCmd.Flags().BoolVar(&useTUI, "tui", false, "Enable the terminal UI")
+	rootCmd.Flags().BoolVar(&autoCopy, "copy", true, "Automatically copy the connection signal when possible")
+	rootCmd.Flags().BoolVar(&noCopy, "no-copy", false, "Disable automatic signal copy")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -105,15 +116,62 @@ func initConfig() {
 }
 
 // Connection handles the main WebRTC P2P connection logic for file transfer.
+func maybeCopySignal(signal string) {
+	if !autoCopy {
+		return
+	}
+	if err := clipboard.WriteAll(signal); err != nil {
+		fmt.Fprintln(os.Stderr, "Clipboard unavailable; copy manually.")
+		return
+	}
+	fmt.Fprintln(os.Stderr, "Copied to clipboard.")
+}
+
+func renderProgress(prefix string, progress *transfer.Progress, stop <-chan struct{}) {
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return
+	}
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			metrics := progress.Metrics()
+			fmt.Printf("\r%s\n", transfer.FormatProgressLine(prefix, metrics))
+			return
+		case <-ticker.C:
+			metrics := progress.Metrics()
+			fmt.Printf("\r%s", transfer.FormatProgressLine(prefix, metrics))
+		}
+	}
+}
+
+func printTransferSummary(action string, total int64, progress *transfer.Progress) {
+	elapsed := progress.Elapsed()
+	avgSpeed := float64(total) / elapsed.Seconds()
+	fmt.Println()
+	fmt.Printf("%s transfer complete\n", action)
+	fmt.Printf("File size: %s\n", transfer.FormatSize(total))
+	fmt.Printf("Time: %s, Avg: %s\n", transfer.FormatDuration(elapsed), transfer.FormatSpeed(avgSpeed))
+}
+
+// Connection handles the main WebRTC P2P connection logic for file transfer.
 func Connection(_ *cobra.Command, _ []string) {
 	datachannel.AutoAccept = autoAccept
+	if noCopy || !term.IsTerminal(int(os.Stdout.Fd())) {
+		autoCopy = false
+	}
 
 	// Who receiver and who sender?
 	var isDirectory bool
 	var filesize int64
 	if file == "" {
 		isOffer = false
-		log.Infoln("Receiver started...")
+		if verbose {
+			log.Infoln("Receiver started...")
+		} else {
+			fmt.Println("Receiver started")
+		}
 	} else {
 		isOffer = true
 		info, err := os.Stat(file)
@@ -125,16 +183,24 @@ func Connection(_ *cobra.Command, _ []string) {
 			filesize = info.Size()
 		}
 		if isDirectory {
-			log.Infoln("Sender started (directory mode)...")
+			if verbose {
+				log.Infoln("Sender started (directory mode)...")
+			} else {
+				fmt.Println("Sender started (directory mode)")
+			}
 			log.Debugf("Directory: %s\n", file)
 		} else {
-			log.Infoln("Sender started...")
+			if verbose {
+				log.Infoln("Sender started...")
+			} else {
+				fmt.Println("Sender started")
+			}
 			log.Debugf("Fileinfo: %#v\n", info)
 		}
 	}
 
 	// If TUI is enabled and not in verbose mode, show TUI welcome
-	if !noTUI && !verbose {
+	if useTUI && !noTUI && !verbose {
 		showTUIWelcome(isOffer, file, filesize)
 	}
 	// Prepare ICE gathering options
@@ -189,13 +255,19 @@ func Connection(_ *cobra.Command, _ []string) {
 		SCTPCapabilities: sctpCapabilities,
 	}
 	// Exchange the information
-	fmt.Printf("Encoded signal:\n\n")
-	fmt.Println(datachannel.Encode(s))
+	encodedSignal := datachannel.Encode(s)
+	fmt.Printf("Your connection signal:\n\n")
+	fmt.Println(encodedSignal)
 	fmt.Printf("\n")
+	fmt.Println("Paste the peer signal and press Ctrl+D.")
+	maybeCopySignal(encodedSignal)
 
 	// Waiting for encoded signal from other side
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
+	if verbose {
+		log.Infoln("Remote signal received.")
+	}
 
 	iceRole := webrtc.ICERoleControlled
 	if isOffer {
@@ -218,7 +290,7 @@ func Connection(_ *cobra.Command, _ []string) {
 	// Start the SCTP transport
 	err = sctp.Start(remoteSignal.SCTPCapabilities)
 	cobra.CheckErr(err)
-	// Construct the data channel as the offerer
+	// Construct the data channel as the sender
 	if isOffer {
 		var id uint16 = 1
 		info, err := os.Stat(file)
@@ -243,6 +315,7 @@ func Connection(_ *cobra.Command, _ []string) {
 
 		channel.OnOpen(func() {
 			var r io.Reader
+			var totalSize int64
 
 			if isDirectory {
 				// Create archive on-the-fly
@@ -259,6 +332,7 @@ func Connection(_ *cobra.Command, _ []string) {
 				}
 				log.Infof("Archive created: %d bytes", bytesWritten)
 				r = &buf
+				totalSize = bytesWritten
 			} else {
 				// Regular file transfer
 				fd, err := os.Open(file) // #nosec G304 - file path is from user-provided flag
@@ -275,7 +349,12 @@ func Connection(_ *cobra.Command, _ []string) {
 					}
 				}()
 				r = fd
+				totalSize = filesize
 			}
+
+			progress := transfer.NewProgress(totalSize)
+			progressStop := make(chan struct{})
+			go renderProgress("Sending", progress, progressStop)
 
 			// Stream data in chunks
 			bufReader := bufio.NewReader(r)
@@ -286,6 +365,7 @@ func Connection(_ *cobra.Command, _ []string) {
 				log.Debugln("nbytes:", nbytes)
 				if nbytes > 0 {
 					totalSent += int64(nbytes)
+					progress.Update(int64(nbytes))
 					if sendErr := channel.Send(chunk[:nbytes]); sendErr != nil {
 						log.Debugln(sendErr)
 						if err := channel.Close(); err != nil {
@@ -295,27 +375,32 @@ func Connection(_ *cobra.Command, _ []string) {
 					}
 				}
 				if readErr == io.EOF {
-					log.Infof("Transfer complete: %d bytes sent", totalSent)
+					close(progressStop)
+					if verbose {
+						log.Infof("Transfer complete: %d bytes sent", totalSent)
+					}
+					printTransferSummary("Sent", totalSent, progress)
 					if err := channel.Close(); err != nil {
 						log.Debugln(err)
 					}
 					break
 				}
 				if readErr != nil {
+					close(progressStop)
 					log.Errorf("Failed reading: %v", readErr)
 					if err := channel.Close(); err != nil {
 						log.Debugln(err)
 					}
+					fmt.Println("Transfer failed. Check the file path and try again.")
 					break
 				}
 			}
-			// err = fd.Close()
-			// cobra.CheckErr(err)
-			// channel.Close()
 		})
 		channel.OnClose(func() {
-			fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
-			fmt.Printf("Chunks from DataChannel '%s' transferred.\n", channel.Label())
+			if verbose {
+				fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
+				fmt.Printf("Chunks from DataChannel '%s' transferred.\n", channel.Label())
+			}
 			os.Exit(0)
 		})
 	}

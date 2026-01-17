@@ -8,16 +8,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/archive"
+	"github.com/abrekhov/hypertunnel/pkg/transfer"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 )
 
 // FileTransferHandler handles incoming file transfers on a WebRTC data channel.
 func FileTransferHandler(channel *webrtc.DataChannel) {
-	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
-	log.Debugf("DataChannel Opts: %#v\n", channel)
+	if log.IsLevelEnabled(log.DebugLevel) {
+		fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
+		log.Debugf("DataChannel Opts: %#v\n", channel)
+	}
 
 	// Detect if this is a directory archive
 	isArchive := strings.HasSuffix(channel.Label(), ".tar.gz")
@@ -26,7 +31,9 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	if isArchive {
 		// Remove .tar.gz suffix to get directory name
 		targetPath = strings.TrimSuffix(channel.Label(), ".tar.gz")
-		fmt.Printf("Receiving directory: %s (archived)\n", targetPath)
+		if log.IsLevelEnabled(log.DebugLevel) {
+			fmt.Printf("Receiving directory: %s (archived)\n", targetPath)
+		}
 	}
 
 	// Check if target already exists
@@ -39,39 +46,58 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 
 	if AutoAccept {
 		if targetExists {
-			log.Infof("Auto-accept enabled: overwriting existing %s %s",
-				map[bool]string{true: "directory", false: "file"}[isArchive],
-				targetPath)
+			if log.IsLevelEnabled(log.DebugLevel) {
+				log.Infof("Auto-accept enabled: overwriting existing %s %s",
+					map[bool]string{true: "directory", false: "file"}[isArchive],
+					targetPath)
+			}
 		} else {
-			log.Infof("Auto-accept enabled: accepting incoming %s %s",
+			if log.IsLevelEnabled(log.DebugLevel) {
+				log.Infof("Auto-accept enabled: accepting incoming %s %s",
+					map[bool]string{true: "directory", false: "file"}[isArchive],
+					targetPath)
+			}
+		}
+	} else {
+		if log.IsLevelEnabled(log.DebugLevel) {
+			log.Infof("Prompting to accept incoming %s %s",
 				map[bool]string{true: "directory", false: "file"}[isArchive],
 				targetPath)
 		}
-	} else {
-		log.Infof("Prompting to accept incoming %s %s",
-			map[bool]string{true: "directory", false: "file"}[isArchive],
-			targetPath)
-		accept := askForConfirmation(fmt.Sprintf("Do you want to receive %s %s?",
+
+		accept := askForConfirmation(fmt.Sprintf("Receive %s %s?",
 			map[bool]string{true: "directory", false: "file"}[isArchive],
 			targetPath), os.Stdin)
 		if !accept {
-			log.Infoln("Transfer declined; ignoring incoming data channel.")
-			fmt.Println("OK! Ignoring...")
+			if log.IsLevelEnabled(log.InfoLevel) {
+				log.Infoln("Transfer declined; ignoring incoming data channel.")
+			}
+			fmt.Println("Transfer declined.")
+
 			return
 		}
-		log.Infoln("Transfer accepted; starting receive.")
+		if log.IsLevelEnabled(log.DebugLevel) {
+			log.Infoln("Transfer accepted; starting receive.")
+		}
 		if targetExists {
-			log.Infof("Existing %s detected: prompting for overwrite", targetPath)
+			if log.IsLevelEnabled(log.DebugLevel) {
+				log.Infof("Existing %s detected: prompting for overwrite", targetPath)
+			}
 			overwrite := askForConfirmation(fmt.Sprintf("%s %s exists. Overwrite?",
-				map[bool]string{true: "Directory", false: "File"}[isArchive],
+				map[bool]string{true: "directory", false: "file"}[isArchive],
 				targetPath), os.Stdin)
 			if !overwrite {
-				log.Infoln("Overwrite declined; ignoring incoming transfer.")
-				fmt.Println("OK! Ignoring...")
+				if log.IsLevelEnabled(log.InfoLevel) {
+					log.Infoln("Overwrite declined; ignoring incoming transfer.")
+				}
+				fmt.Println("Transfer declined.")
+
 				return
 			}
-			log.Infoln("Overwrite confirmed; proceeding with transfer.")
-		} else {
+			if log.IsLevelEnabled(log.DebugLevel) {
+				log.Infoln("Overwrite confirmed; proceeding with transfer.")
+			}
+		} else if log.IsLevelEnabled(log.DebugLevel) {
 			log.Debugf("No existing target at %s", targetPath)
 		}
 	}
@@ -93,20 +119,62 @@ func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
 		return
 	}
 
+	progress := transfer.NewProgress(0)
+	progressStop := make(chan struct{})
+	go renderReceiveProgress(progress, progressStop)
+
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if _, err := fd.Write(msg.Data); err != nil {
 			log.Errorf("Failed to write data: %v", err)
+			return
 		}
+		progress.Update(int64(len(msg.Data)))
 	})
 
 	channel.OnClose(func() {
-		fmt.Printf("Data channel '%s'-'%d' closed. Transfer complete.\n", channel.Label(), channel.ID())
+		close(progressStop)
+		if log.IsLevelEnabled(log.DebugLevel) {
+			fmt.Printf("Data channel '%s'-'%d' closed. Transfer complete.\n", channel.Label(), channel.ID())
+		}
 		if err := fd.Close(); err != nil {
 			log.Errorf("Failed to close file: %v", err)
 		}
+		printReceiveSummary(channel.Label(), progress)
 		os.Exit(0)
 	})
+}
+
+func renderReceiveProgress(progress *transfer.Progress, stop <-chan struct{}) {
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return
+	}
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			metrics := progress.Metrics()
+			fmt.Printf("\r%s\n", transfer.FormatProgressLine("Receiving", metrics))
+			return
+		case <-ticker.C:
+			metrics := progress.Metrics()
+			fmt.Printf("\r%s", transfer.FormatProgressLine("Receiving", metrics))
+		}
+	}
+}
+
+func printReceiveSummary(name string, progress *transfer.Progress) {
+	metrics := progress.Metrics()
+	elapsed := progress.Elapsed()
+	avgSpeed := 0.0
+	if elapsed.Seconds() > 0 {
+		avgSpeed = float64(metrics.TransferredBytes) / elapsed.Seconds()
+	}
+	fmt.Println()
+	fmt.Println("Receive complete")
+	fmt.Printf("File: %s (%s)\n", name, transfer.FormatSize(metrics.TransferredBytes))
+	fmt.Printf("Time: %s, Avg: %s\n", transfer.FormatDuration(elapsed), transfer.FormatSpeed(avgSpeed))
 }
 
 // handleArchiveTransfer handles receiving and extracting a directory archive.
@@ -126,9 +194,11 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 	})
 
 	channel.OnClose(func() {
-		fmt.Printf("Data channel '%s'-'%d' closed.\n", channel.Label(), channel.ID())
-		fmt.Printf("Total received: %d bytes\n", totalReceived)
-		fmt.Println("Extracting archive...")
+		if log.IsLevelEnabled(log.DebugLevel) {
+			fmt.Printf("Data channel '%s'-'%d' closed.\n", channel.Label(), channel.ID())
+			fmt.Printf("Total received: %d bytes\n", totalReceived)
+			fmt.Println("Extracting archive...")
+		}
 
 		// Extract the archive
 		opts := archive.DefaultOptions()
@@ -153,7 +223,9 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 			os.Exit(1)
 		}
 
-		fmt.Printf("Directory extracted to: %s\n", destPath)
+		if log.IsLevelEnabled(log.DebugLevel) {
+			fmt.Printf("Directory extracted to: %s\n", destPath)
+		}
 		os.Exit(0)
 	})
 }
@@ -165,19 +237,25 @@ func askForConfirmation(s string, in io.Reader) bool {
 	tries := 3
 	reader := bufio.NewReader(in)
 	for ; tries > 0; tries-- {
-		fmt.Printf("%s [y/n]: ", s)
+		fmt.Printf("%s [Y/n]: ", s)
 
 		res, err := reader.ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		// Empty input (i.e. "\n")
+		// Empty input (i.e. "\n") defaults to yes
 		if len(res) < 2 {
-			continue
+			return true
 		}
 
-		return strings.ToLower(strings.TrimSpace(res))[0] == 'y'
+		trimmed := strings.ToLower(strings.TrimSpace(res))
+		if trimmed == "y" || trimmed == "yes" {
+			return true
+		}
+		if trimmed == "n" || trimmed == "no" {
+			return false
+		}
 	}
 
 	return false
