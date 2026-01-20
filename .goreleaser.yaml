@@ -17,13 +17,16 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -s -w
 
 # Disable archiving
 archives:
   - formats: binary
-    name_template: "ht_{{ .Os }}_{{ .Arch }}{{ if eq .Os \"windows\" }}.exe{{ end }}"
+    name_template: "ht_{{ .Os }}_{{ .Arch }}"
     ids:
       - ht
 
@@ -51,7 +54,7 @@ brews:
     repository:
       owner: abrekhov
       name: homebrew-hypertunnel
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN | default .Env.GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/abrekhov/hypertunnel
     description: P2P file transfer tool using WebRTC
