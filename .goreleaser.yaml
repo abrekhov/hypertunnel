@@ -5,8 +5,9 @@ project_name: hypertunnel
 
 # Build configuration
 builds:
-  - main: ./main.go
-    binary: "ht_{{ .Os }}_{{ .Arch }}"
+  - id: ht
+    main: ./main.go
+    binary: ht
     env:
       - CGO_ENABLED=0
     goos:
@@ -19,16 +20,49 @@ builds:
     ldflags:
       - -s -w
 
-# Disable archiving 
+# Disable archiving
 archives:
-  - format: binary
+  - formats: binary
+    name_template: "ht_{{ .Os }}_{{ .Arch }}{{ if eq .Os \"windows\" }}.exe{{ end }}"
+    ids:
+      - ht
 
 # Generate checksums for the binaries
 checksum:
   name_template: 'checksums.txt'
 
+# Debian packages
+nfpms:
+  - id: hypertunnel
+    package_name: hypertunnel
+    maintainer: Anton Brekhov <anton@abrekhov.ru>
+    description: P2P file transfer tool using WebRTC
+    homepage: https://github.com/abrekhov/hypertunnel
+    license: Apache-2.0
+    formats:
+      - deb
+    bindir: /usr/local/bin
+    ids:
+      - ht
+
+# Homebrew formula
+brews:
+  - name: hypertunnel
+    repository:
+      owner: abrekhov
+      name: homebrew-hypertunnel
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/abrekhov/hypertunnel
+    description: P2P file transfer tool using WebRTC
+    license: Apache-2.0
+    install: |
+      bin.install "ht"
+    test: |
+      system "#{bin}/ht", "--help"
+
 # Release configuration
 release:
   github:
-    owner: abrekhov 
+    owner: abrekhov
     name: hypertunnel

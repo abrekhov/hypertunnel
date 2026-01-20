@@ -1,0 +1,47 @@
+name: Auto Tag
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create next patch tag
+        run: |
+          git fetch --tags
+          latest_tag=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+          version=${latest_tag#v}
+          major=$(echo "$version" | cut -d. -f1)
+          minor=$(echo "$version" | cut -d. -f2)
+          patch=$(echo "$version" | cut -d. -f3)
+          if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
+            echo "Invalid tag format: $latest_tag"
+            exit 1
+          fi
+          next_patch=$((patch + 1))
+          next_tag="v${major}.${minor}.${next_patch}"
+          if git rev-parse "$next_tag" >/dev/null 2>&1; then
+            echo "Tag $next_tag already exists"
+            exit 0
+          fi
+          git tag "$next_tag"
+          git push origin "$next_tag"

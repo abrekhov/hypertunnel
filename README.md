@@ -89,6 +89,13 @@ tar -xzf hypertunnel_VERSION_OS_ARCH.tar.gz
 sudo mv ht /usr/local/bin/
 ```
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap abrekhov/hypertunnel
+brew install hypertunnel
+```
+
 ### Windows
 
 Download the `.zip` archive from the [releases page](https://github.com/abrekhov/hypertunnel/releases) and extract `ht.exe` to your desired location. Add it to your PATH for easy access.
