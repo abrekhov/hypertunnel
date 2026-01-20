@@ -54,7 +54,7 @@ brews:
     repository:
       owner: abrekhov
       name: homebrew-hypertunnel
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN | default .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/abrekhov/hypertunnel
     description: P2P file transfer tool using WebRTC
