@@ -78,7 +78,7 @@ Integration tests are tagged and run separately:
 go test -v -tags=integration ./...
 ```
 
-These tests verify end-to-end functionality like encryption/decryption round-trips.
+These tests verify end-to-end functionality like encryption/decryption round-trips and WebRTC file transfers. The WebRTC transfer test builds the CLI and runs sender/receiver processes using file-based signal exchange; it requires network access for STUN and uses the `--signal-in/--signal-out` flags for non-interactive automation.
 
 ### Benchmarks
 

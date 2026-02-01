@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -178,7 +179,7 @@ func Connection(cmd *cobra.Command, args []string) {
 	}
 	// Exchange the information
 	encodedSignal := datachannel.Encode(s)
-	if signalOut == "" {
+	if signalOut == "" || signalOut == "-" {
 		fmt.Printf("Encoded signal:\n\n")
 		fmt.Println(encodedSignal)
 		fmt.Printf("\n")
@@ -191,6 +192,10 @@ func Connection(cmd *cobra.Command, args []string) {
 	remoteSignalString := ""
 	if signalIn == "" {
 		remoteSignalString = datachannel.MustReadStdin()
+	} else if signalIn == "-" {
+		var err error
+		remoteSignalString, err = readSignalFromReader(os.Stdin)
+		cobra.CheckErr(err)
 	} else {
 		var err error
 		remoteSignalString, err = readSignalFromFile(signalIn, signalTimeout)
@@ -276,7 +281,10 @@ func Connection(cmd *cobra.Command, args []string) {
 }
 
 func readSignalFromFile(path string, timeout time.Duration) (string, error) {
-	deadline := time.After(timeout)
+	var deadline <-chan time.Time
+	if timeout > 0 {
+		deadline = time.After(timeout)
+	}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -292,13 +300,25 @@ func readSignalFromFile(path string, timeout time.Duration) (string, error) {
 		}
 
 		select {
+		case <-ticker.C:
 		case <-deadline:
 			return "", fmt.Errorf("timed out waiting for signal file: %s", path)
-		case <-ticker.C:
 		}
 	}
 }
 
 func writeSignalToFile(path, signal string) error {
 	return os.WriteFile(path, []byte(signal), 0600)
+}
+
+func readSignalFromReader(r io.Reader) (string, error) {
+	contents, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	trimmed := strings.TrimSpace(string(contents))
+	if trimmed == "" {
+		return "", fmt.Errorf("empty signal received from stdin")
+	}
+	return trimmed, nil
 }
