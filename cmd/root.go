@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/datachannel"
@@ -36,6 +37,11 @@ var (
 	verbose bool
 	isOffer bool
 	file    string
+
+	signalIn      string
+	signalOut     string
+	signalTimeout time.Duration
+	autoAccept    bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -70,6 +76,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hypertunnel.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Increase verbosity")
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "File to transfer")
+	rootCmd.Flags().StringVar(&signalIn, "signal-in", "", "Path to read remote signal from")
+	rootCmd.Flags().StringVar(&signalOut, "signal-out", "", "Path to write local signal to")
+	rootCmd.Flags().DurationVar(&signalTimeout, "signal-timeout", 30*time.Second, "Timeout waiting for remote signal file")
+	rootCmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Automatically accept incoming file transfers")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -96,6 +106,7 @@ func initConfig() {
 }
 
 func Connection(cmd *cobra.Command, args []string) {
+	datachannel.AutoAccept = autoAccept
 
 	// Who receiver and who sender?
 	if file == "" {
@@ -166,13 +177,26 @@ func Connection(cmd *cobra.Command, args []string) {
 		SCTPCapabilities: sctpCapabilities,
 	}
 	// Exchange the information
-	fmt.Printf("Encoded signal:\n\n")
-	fmt.Println(datachannel.Encode(s))
-	fmt.Printf("\n")
+	encodedSignal := datachannel.Encode(s)
+	if signalOut == "" {
+		fmt.Printf("Encoded signal:\n\n")
+		fmt.Println(encodedSignal)
+		fmt.Printf("\n")
+	} else {
+		cobra.CheckErr(writeSignalToFile(signalOut, encodedSignal))
+	}
 
 	// Waiting for encoded signal from other side
 	remoteSignal := datachannel.Signal{}
-	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
+	remoteSignalString := ""
+	if signalIn == "" {
+		remoteSignalString = datachannel.MustReadStdin()
+	} else {
+		var err error
+		remoteSignalString, err = readSignalFromFile(signalIn, signalTimeout)
+		cobra.CheckErr(err)
+	}
+	datachannel.Decode(remoteSignalString, &remoteSignal)
 
 	iceRole := webrtc.ICERoleControlled
 	if isOffer {
@@ -249,4 +273,32 @@ func Connection(cmd *cobra.Command, args []string) {
 	}
 
 	select {}
+}
+
+func readSignalFromFile(path string, timeout time.Duration) (string, error) {
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		contents, err := os.ReadFile(path)
+		if err == nil {
+			trimmed := strings.TrimSpace(string(contents))
+			if trimmed != "" {
+				return trimmed, nil
+			}
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		select {
+		case <-deadline:
+			return "", fmt.Errorf("timed out waiting for signal file: %s", path)
+		case <-ticker.C:
+		}
+	}
+}
+
+func writeSignalToFile(path, signal string) error {
+	return os.WriteFile(path, []byte(signal), 0600)
 }

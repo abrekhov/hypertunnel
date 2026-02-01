@@ -8,13 +8,17 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/hashutils"
 	"github.com/stretchr/testify/assert"
@@ -287,4 +291,87 @@ func decryptFile(inputPath, outputPath, keyphrase string, bufferSize int32) erro
 	}
 
 	return nil
+}
+
+func TestWebRTCFileTransferE2E(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping WebRTC e2e test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	tempDir := t.TempDir()
+	binPath := filepath.Join(tempDir, "ht")
+
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binPath, "./")
+	buildCmd.Dir = "."
+	buildOutput, err := buildCmd.CombinedOutput()
+	require.NoErrorf(t, err, "build failed: %s", string(buildOutput))
+
+	senderDir := filepath.Join(tempDir, "sender")
+	receiverDir := filepath.Join(tempDir, "receiver")
+	require.NoError(t, os.MkdirAll(senderDir, 0755))
+	require.NoError(t, os.MkdirAll(receiverDir, 0755))
+
+	content := []byte("e2e transfer data via webrtc")
+	fileName := "sample.txt"
+	sourcePath := filepath.Join(senderDir, fileName)
+	require.NoError(t, os.WriteFile(sourcePath, content, 0644))
+
+	senderSignal := filepath.Join(tempDir, "sender.signal")
+	receiverSignal := filepath.Join(tempDir, "receiver.signal")
+
+	var receiverOutput bytes.Buffer
+	receiverCmd := exec.CommandContext(
+		ctx,
+		binPath,
+		"--signal-out", receiverSignal,
+		"--signal-in", senderSignal,
+		"--signal-timeout", "30s",
+		"--auto-accept",
+	)
+	receiverCmd.Dir = receiverDir
+	receiverCmd.Stdout = &receiverOutput
+	receiverCmd.Stderr = &receiverOutput
+	require.NoError(t, receiverCmd.Start())
+
+	var senderOutput bytes.Buffer
+	senderCmd := exec.CommandContext(
+		ctx,
+		binPath,
+		"-f", sourcePath,
+		"--signal-out", senderSignal,
+		"--signal-in", receiverSignal,
+		"--signal-timeout", "30s",
+		"--auto-accept",
+	)
+	senderCmd.Dir = senderDir
+	senderCmd.Stdout = &senderOutput
+	senderCmd.Stderr = &senderOutput
+	require.NoError(t, senderCmd.Start())
+
+	senderErrCh := make(chan error, 1)
+	receiverErrCh := make(chan error, 1)
+	go func() { senderErrCh <- senderCmd.Wait() }()
+	go func() { receiverErrCh <- receiverCmd.Wait() }()
+
+	select {
+	case err := <-senderErrCh:
+		require.NoErrorf(t, err, "sender failed: %s", senderOutput.String())
+	case <-ctx.Done():
+		t.Fatalf("sender timed out: %s", senderOutput.String())
+	}
+
+	select {
+	case err := <-receiverErrCh:
+		require.NoErrorf(t, err, "receiver failed: %s", receiverOutput.String())
+	case <-ctx.Done():
+		t.Fatalf("receiver timed out: %s", receiverOutput.String())
+	}
+
+	receivedPath := filepath.Join(receiverDir, fileName)
+	received, err := os.ReadFile(receivedPath)
+	require.NoError(t, err)
+	assert.Equal(t, content, received)
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var AutoAccept bool
+
 func FileTransferHandler(channel *webrtc.DataChannel) {
 	fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 	log.Debugf("DataChannel Opts: %#v\n", channel)
@@ -46,6 +48,10 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 }
 
 func askForConfirmation(s string, in io.Reader) bool {
+	if AutoAccept {
+		return true
+	}
+
 	tries := 3
 	reader := bufio.NewReader(in)
 	for ; tries > 0; tries-- {
