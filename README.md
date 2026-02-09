@@ -91,10 +91,7 @@ sudo mv ht /usr/local/bin/
 
 ### Homebrew (macOS/Linux)
 
-```bash
-brew tap abrekhov/hypertunnel
-brew install hypertunnel
-```
+Planned. Homebrew tap is not published yet.
 
 ### Windows
 
@@ -155,6 +152,11 @@ Both computers must have access to the Internet!
 
 # Enable verbose logging
 ./ht -v -f <file-or-directory>
+
+# Print version
+./ht version
+# or
+./ht --version
 
 # Encrypt a file before transfer
 ./ht encrypt -k "your-passphrase" <file>
