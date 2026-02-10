@@ -60,7 +60,9 @@ brews:
     description: P2P file transfer tool using WebRTC
     license: Apache-2.0
     install: |
-      bin.install "ht"
+      # Assets are published as raw binaries (e.g. ht_darwin_arm64).
+      # Install whichever one Homebrew downloaded, renaming it to `ht`.
+      bin.install Dir["ht_*"][0] => "ht"
     test: |
       system "#{bin}/ht", "--help"
 
