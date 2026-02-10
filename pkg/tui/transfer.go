@@ -69,7 +69,7 @@ func (m *TransferModel) Update(msg tea.Msg) (TransferModel, tea.Cmd) {
 		m.height = msg.Height
 		// Update progress bar width
 		if m.width > 20 {
-			m.progress.Width = min(m.width-20, 60)
+			m.progress.Width = minInt(m.width-20, 60)
 		}
 		return *m, nil
 	}
@@ -169,4 +169,11 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 	}
 	return fmt.Sprintf("%02d:%02d", m, s)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
