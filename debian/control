@@ -16,7 +16,7 @@ XS-Go-Import-Path: github.com/abrekhov/hypertunnel
 
 Package: hypertunnel
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}
 Description: P2P secure file transfer tool using WebRTC
  HyperTunnel transfers files directly between machines behind NAT using WebRTC.
  It uses manual signal exchange, progress reporting, and optional encryption.

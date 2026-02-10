@@ -8,6 +8,12 @@ export DH_GOPKG = github.com/abrekhov/hypertunnel
 %:
 	dh $@ --with=golang
 
+override_dh_auto_configure:
+	:
+
+override_dh_auto_clean:
+	:
+
 override_dh_auto_build:
 	test -f vendor/modules.txt || { echo "ERROR: missing vendor/modules.txt; run 'go mod vendor' before building (Launchpad builders are offline)." >&2; exit 1; }
 	mkdir -p build
