@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+export CGO_ENABLED = 0
+export GO111MODULE = on
+export GOFLAGS = -mod=vendor -buildvcs=false -trimpath
+export DH_GOPKG = github.com/abrekhov/hypertunnel
+
+%:
+	dh $@ --with=golang
+
+override_dh_auto_build:
+	test -f vendor/modules.txt || { echo "ERROR: missing vendor/modules.txt; run 'go mod vendor' before building (Launchpad builders are offline)." >&2; exit 1; }
+	mkdir -p build
+	go build $(GOFLAGS) -ldflags "-s -w" -o build/ht ./main.go
+
+override_dh_auto_test:
+	:
+
+override_dh_auto_install:
+	install -D -m 0755 build/ht debian/tmp/usr/bin/ht

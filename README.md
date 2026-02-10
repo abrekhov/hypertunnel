@@ -58,6 +58,21 @@ sudo apt install ./hypertunnel_VERSION_linux_amd64.deb
 sudo dpkg -i hypertunnel_VERSION_linux_amd64.deb
 ```
 
+### Ubuntu (APT via Launchpad PPA)
+
+This requires the Launchpad PPA to exist (and for your Ubuntu version/arch to be published). Packages may take some time to build and appear after a new release.
+
+The package should provide the `ht` binary and a `hypertunnel` alias.
+
+```bash
+sudo add-apt-repository -y ppa:abrekhov/hypertunnel
+sudo apt-get update
+sudo apt-get install -y hypertunnel
+
+ht --version
+hypertunnel --help
+```
+
 ### RPM-based Linux (Fedora, RHEL, CentOS)
 
 ```bash

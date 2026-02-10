@@ -1,0 +1,22 @@
+Source: hypertunnel
+Section: net
+Priority: optional
+Maintainer: Anton Brekhov <anton@abrekhov.ru>
+XSBC-Original-Maintainer: Anton Brekhov <anton@abrekhov.ru>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-golang,
+ golang-any | golang-go
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/abrekhov/hypertunnel
+Vcs-Browser: https://github.com/abrekhov/hypertunnel
+Vcs-Git: https://github.com/abrekhov/hypertunnel.git
+XS-Go-Import-Path: github.com/abrekhov/hypertunnel
+
+Package: hypertunnel
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: P2P secure file transfer tool using WebRTC
+ HyperTunnel transfers files directly between machines behind NAT using WebRTC.
+ It uses manual signal exchange, progress reporting, and optional encryption.
