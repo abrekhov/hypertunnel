@@ -78,7 +78,7 @@ Integration tests are tagged and run separately:
 go test -v -tags=integration ./...
 ```
 
-These tests verify end-to-end functionality like encryption/decryption round-trips.
+These tests verify end-to-end functionality like encryption/decryption round-trips and the local WebRTC datachannel transfer e2e test in `pkg/datachannel/webrtc_e2e_integration_test.go`.
 
 ### Benchmarks
 
