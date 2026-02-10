@@ -15,3 +15,17 @@ ht_*
 # Log and temporary files
 *.log
 *.tmp
+
+# Local planning artifacts
+.sisyphus/
+
+# Go vendor directory
+vendor/
+
+# Debian packaging artifacts
+obj-*/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/tmp/
