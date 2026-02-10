@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/archive"
@@ -157,6 +158,42 @@ func printTransferSummary(action string, total int64, progress *transfer.Progres
 	fmt.Printf("Time: %s, Avg: %s\n", transfer.FormatDuration(elapsed), transfer.FormatSpeed(avgSpeed))
 }
 
+// decideICERole deterministically selects the ICE role based on local/remote parameters.
+// When keys match, default to controlling to avoid a no-op role.
+func decideICERole(localICE webrtc.ICEParameters, localDTLS webrtc.DTLSParameters, remoteICE webrtc.ICEParameters, remoteDTLS webrtc.DTLSParameters) (webrtc.ICERole, string, string) {
+	localKey := iceRoleKey(localICE, localDTLS)
+	remoteKey := iceRoleKey(remoteICE, remoteDTLS)
+	switch {
+	case localKey > remoteKey:
+		return webrtc.ICERoleControlling, localKey, remoteKey
+	case localKey < remoteKey:
+		return webrtc.ICERoleControlled, localKey, remoteKey
+	default:
+		return webrtc.ICERoleControlling, localKey, remoteKey
+	}
+}
+
+// iceRoleKey creates a stable ordering key from ICE and DTLS parameters.
+func iceRoleKey(iceParams webrtc.ICEParameters, dtlsParams webrtc.DTLSParameters) string {
+	var buf bytes.Buffer
+	buf.WriteString(iceParams.UsernameFragment)
+	buf.WriteByte('|')
+	buf.WriteString(iceParams.Password)
+	buf.WriteByte('|')
+	fps := make([]string, 0, len(dtlsParams.Fingerprints))
+	for _, fp := range dtlsParams.Fingerprints {
+		fps = append(fps, fp.Algorithm+":"+fp.Value)
+	}
+	sort.Strings(fps)
+	for i, fp := range fps {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(fp)
+	}
+	return buf.String()
+}
+
 // Connection handles the main WebRTC P2P connection logic for file transfer.
 func Connection(_ *cobra.Command, _ []string) {
 	datachannel.AutoAccept = autoAccept
@@ -268,14 +305,9 @@ func Connection(_ *cobra.Command, _ []string) {
 	// Waiting for encoded signal from other side
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
-	if verbose {
-		log.Infoln("Remote signal received.")
-	}
-
-	iceRole := webrtc.ICERoleControlled
-	if isOffer {
-		iceRole = webrtc.ICERoleControlling
-	}
+	log.Infoln("Remote signal received.")
+	iceRole, localKey, remoteKey := decideICERole(iceParams, dtlsParams, remoteSignal.ICEParameters, remoteSignal.DTLSParameters)
+	log.Debugf("Selected ICE role: %s (local key %q vs remote key %q)", iceRole, localKey, remoteKey)
 	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
 	cobra.CheckErr(err)
 
