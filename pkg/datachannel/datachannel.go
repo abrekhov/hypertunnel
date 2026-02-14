@@ -10,11 +10,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // Encode encodes a Signal to a compact binary format (74% smaller than JSON).
@@ -71,6 +74,20 @@ func Decode(in string, obj interface{}) {
 
 // MustReadStdin waiting for base64 encoded SDP for connection
 func MustReadStdin() string {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return ""
+		}
+		sdpOffer := strings.TrimSpace(string(b))
+		if logrus.IsLevelEnabled(logrus.DebugLevel) {
+			fmt.Println("Received peer signal:")
+			fmt.Println(sdpOffer)
+		}
+		return sdpOffer
+	}
+
 	var sdpOffer string
 	prompt := &survey.Multiline{
 		Message: "Paste the peer signal (end with Ctrl+D):",

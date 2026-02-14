@@ -127,7 +127,7 @@ jobs:
           cache: true
 
       - name: Run integration tests
-        run: go test -v -tags=integration ./...
+        run: CGO_ENABLED=0 go test -v -count=1 -timeout=8m -tags=integration ./...
 
   coverage-check:
     name: Coverage Check
