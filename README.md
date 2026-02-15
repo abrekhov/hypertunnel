@@ -43,6 +43,14 @@ go build -o ht
 
 ## Installation
 
+### One-line Installer (Linux/macOS)
+
+```bash
+curl -fsSL https://abrekhov.github.io/hypertunnel/install.sh | sh
+```
+
+This downloads the latest release binary and installs `ht` to `/usr/local/bin` (or `~/.local/bin` if sudo is not available).
+
 ### Debian/Ubuntu (APT)
 
 Download the latest `.deb` package from the [releases page](https://github.com/abrekhov/hypertunnel/releases):
@@ -117,6 +125,12 @@ export GOBIN="${GOPATH}/bin"
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
 go install github.com/abrekhov/hypertunnel@latest
 ```
+
+## GitHub Pages
+
+The installer script is hosted on GitHub Pages at:
+
+- `https://abrekhov.github.io/hypertunnel/install.sh`
 
 ## Usage
 

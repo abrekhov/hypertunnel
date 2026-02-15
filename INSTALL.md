@@ -18,6 +18,14 @@ This guide provides detailed installation instructions for HyperTunnel across di
 
 ## Linux
 
+### One-line Installer (Linux/macOS)
+
+This is the fastest way to install on a fresh host (downloads the latest release binary):
+
+```bash
+curl -fsSL https://abrekhov.github.io/hypertunnel/install.sh | sh
+```
+
 ### Debian/Ubuntu (DEB)
 
 1. **Download the DEB package:**
