@@ -57,43 +57,43 @@ Download the latest `.deb` package from the [releases page](https://github.com/a
 
 ```bash
 # Download the latest .deb package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.deb
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.deb
 
 # Install with apt
-sudo apt install ./hypertunnel_VERSION_linux_amd64.deb
+sudo apt install ./hypertunnel_linux_amd64.deb
 
 # Or use dpkg directly
-sudo dpkg -i hypertunnel_VERSION_linux_amd64.deb
+sudo dpkg -i hypertunnel_linux_amd64.deb
 ```
 
 ### RPM-based Linux (Fedora, RHEL, CentOS)
 
 ```bash
 # Download the latest .rpm package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel-VERSION-amd64.rpm
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.rpm
 
 # Install with dnf/yum
-sudo dnf install ./hypertunnel-VERSION-amd64.rpm
+sudo dnf install ./hypertunnel_linux_amd64.rpm
 # or
-sudo yum install ./hypertunnel-VERSION-amd64.rpm
+sudo yum install ./hypertunnel_linux_amd64.rpm
 ```
 
 ### Alpine Linux
 
 ```bash
 # Download the latest .apk package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.apk
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.apk
 
 # Install with apk
-sudo apk add --allow-untrusted ./hypertunnel_VERSION_linux_amd64.apk
+sudo apk add --allow-untrusted ./hypertunnel_linux_amd64.apk
 ```
 
 ### macOS / Linux (Archives)
 
 ```bash
 # Download and extract the archive for your platform
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_OS_ARCH.tar.gz
-tar -xzf hypertunnel_VERSION_OS_ARCH.tar.gz
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.tar.gz
+tar -xzf hypertunnel_linux_amd64.tar.gz
 sudo mv ht /usr/local/bin/
 ```
 

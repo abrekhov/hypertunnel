@@ -25,8 +25,21 @@ builds:
 
 # Disable archiving
 archives:
-  - formats: binary
+  # Raw binaries (stable names) for the GitHub Pages installer.
+  - id: raw-binaries
+    formats: binary
     name_template: "ht_{{ .Os }}_{{ .Arch }}"
+    ids:
+      - ht
+
+  # Compressed archives for users (stable names).
+  - id: archives
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "hypertunnel_{{ .Os }}_{{ .Arch }}"
     ids:
       - ht
 
@@ -44,13 +57,20 @@ nfpms:
     license: Apache-2.0
     formats:
       - deb
-    bindir: /usr/local/bin
+      - rpm
+      - apk
+    bindir: /usr/bin
+    scripts:
+      postinstall: scripts/postinstall.sh
+    file_name_template: "hypertunnel_{{ .Os }}_{{ .Arch }}"
     ids:
       - ht
 
 # Homebrew formula
 brews:
   - name: hypertunnel
+    ids:
+      - raw-binaries
     repository:
       owner: abrekhov
       name: homebrew-hypertunnel

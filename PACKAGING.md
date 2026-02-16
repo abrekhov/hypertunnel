@@ -160,24 +160,34 @@ These will be marked as pre-releases on GitHub.
 
 ## Package Naming
 
-### DEB/APK
+### DEB/APK/RPM
+Stable, versionless filenames are used so `releases/latest/download/...` links work:
+
 ```
-hypertunnel_<VERSION>_<OS>_<ARCH>.deb
-hypertunnel_1.0.0_linux_amd64.deb
+hypertunnel_linux_amd64.deb
+hypertunnel_linux_arm64.deb
+hypertunnel_linux_amd64.rpm
+hypertunnel_linux_arm64.rpm
+hypertunnel_linux_amd64.apk
+hypertunnel_linux_arm64.apk
 ```
 
-### RPM
+### Raw Binaries
 ```
-hypertunnel-<VERSION>-<ARCH>.rpm
-hypertunnel-1.0.0-amd64.rpm
+ht_linux_amd64
+ht_linux_arm64
+ht_darwin_amd64
+ht_darwin_arm64
+ht_windows_amd64.exe
 ```
 
 ### Archives
 ```
-hypertunnel_<VERSION>_<OS>_<ARCH>.tar.gz
-hypertunnel_1.0.0_linux_amd64.tar.gz
-hypertunnel_1.0.0_darwin_arm64.tar.gz
-hypertunnel_1.0.0_windows_amd64.zip
+hypertunnel_linux_amd64.tar.gz
+hypertunnel_linux_arm64.tar.gz
+hypertunnel_darwin_amd64.tar.gz
+hypertunnel_darwin_arm64.tar.gz
+hypertunnel_windows_amd64.zip
 ```
 
 ## Checksums
