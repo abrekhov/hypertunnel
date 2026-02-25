@@ -778,9 +778,8 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Auto-reconnect with exponential backoff
 
 #### 1.3 Connection Improvements (IN PROGRESS)
-- [x] **Bi-directional candidate exchange** ✅
+- [ ] **Symmetric connection startup**
   - Allow starting in any order (remove offer/answer dependency)
-  - Implement symmetric connection setup
   - Both peers act as ICE controllers initially
 
 - [ ] **Multiple STUN/TURN servers** (FUTURE)
@@ -1554,7 +1553,7 @@ package() {
 - ✅ Multi-platform packages
 - ⏳ Homebrew/Scoop
 - ✅ Zero critical security issues
-- ✅ Symmetric connection (start in any order)
+- ⏳ Symmetric connection (start in any order)
 
 ---
 
