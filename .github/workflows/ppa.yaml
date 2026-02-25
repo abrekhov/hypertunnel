@@ -1,0 +1,148 @@
+# .github/workflows/ppa.yaml
+
+name: Publish PPA (source)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ppa:
+    name: Upload source to Launchpad (${{ matrix.series }})
+    if: github.repository == 'abrekhov/hypertunnel'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [jammy, noble]
+
+    env:
+      CGO_ENABLED: '0'
+      DEBIAN_FRONTEND: noninteractive
+      DEBFULLNAME: GitHub Actions
+      DEBEMAIL: github-actions[bot]@users.noreply.github.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            debhelper \
+            devscripts \
+            dh-golang \
+            dput \
+            gnupg \
+            golang-go
+
+      - name: Vendor Go dependencies (Launchpad offline builds)
+        run: go mod vendor
+
+      - name: Derive PPA version for series
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            git fetch --tags --force
+            tag="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)"
+          fi
+
+          if [[ -z "${tag}" ]]; then
+            echo "No version tag (v*.*.*) found" >&2
+            exit 1
+          fi
+
+          base="${tag#v}"
+          case "${{ matrix.series }}" in
+            jammy)
+              suffix="~ppa1~ubuntu22.04.1"
+              ;;
+            noble)
+              suffix="~ppa1~ubuntu24.04.1"
+              ;;
+            *)
+              echo "Unknown series: ${{ matrix.series }}" >&2
+              exit 1
+              ;;
+          esac
+
+          newversion="${base}${suffix}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+          echo "newversion=${newversion}" >> "$GITHUB_OUTPUT"
+
+      - name: Update debian/changelog (version + distribution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dch \
+            --newversion "${{ steps.version.outputs.newversion }}" \
+            --distribution "${{ matrix.series }}" \
+            --force-distribution \
+            "Automated PPA upload for ${{ matrix.series }}."
+
+      - name: Build Debian source package (unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          debuild -S -sa -us -uc
+
+      - name: Import Launchpad signing key
+        shell: bash
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
+          GPG_KEY_ID: ${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.gnupg"
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --list-secret-keys "$GPG_KEY_ID" >/dev/null
+
+      - name: Sign the .changes file
+        shell: bash
+        env:
+          GPG_KEY_ID: ${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.LAUNCHPAD_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changes_files < <(ls -1 ../*.changes)
+          if [[ "${#changes_files[@]}" -ne 1 ]]; then
+            echo "Expected exactly one .changes file in parent directory" >&2
+            printf '%s\n' "${changes_files[@]:-}" >&2
+            exit 1
+          fi
+
+          changes_file="${changes_files[0]}"
+          signed_file="${changes_file}.signed"
+          gpg \
+            --batch \
+            --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --default-key "$GPG_KEY_ID" \
+            --clearsign \
+            --output "$signed_file" \
+            "$changes_file"
+          mv -f "$signed_file" "$changes_file"
+
+      - name: Upload to Launchpad PPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          changes_file="$(ls -1 ../*.changes | head -n 1)"
+          dput ppa:abrekhov/hypertunnel "$changes_file"
