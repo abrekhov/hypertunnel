@@ -22,33 +22,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// These variables are intended to be set at build time via -ldflags.
-// Defaults are useful for local `go build`.
 var (
-	Version = "dev"
-	Commit  = "none"
-	Date    = "unknown"
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print version",
-	Args:  cobra.NoArgs,
-	Run: func(cmd *cobra.Command, _ []string) {
-		long, _ := cmd.Flags().GetBool("long")
-		if !long {
-			fmt.Fprintln(cmd.OutOrStdout(), Version)
-			return
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "version\t%s\ncommit\t%s\ndate\t%s\n", Version, Commit, Date)
-	},
-}
-
 func init() {
-	// Keep `--version` output copy/paste friendly (one line).
-	rootCmd.Version = Version
+	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
-
-	versionCmd.Flags().Bool("long", false, "Print extended version information")
-	rootCmd.AddCommand(versionCmd)
+	var long bool
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print version",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if long {
+				_, err := fmt.Fprintf(cmd.OutOrStdout(), "version\t%s\ncommit\t%s\ndate\t%s\n", version, commit, date)
+				return err
+			}
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), version)
+			return err
+		},
+	}
+	cmd.Flags().BoolVar(&long, "long", false, "Print extended version information")
+	rootCmd.AddCommand(cmd)
 }
