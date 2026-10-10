@@ -18,6 +18,14 @@ This guide provides detailed installation instructions for HyperTunnel across di
 
 ## Linux
 
+### One-line Installer (Linux/macOS)
+
+This is the fastest way to install on a fresh host (downloads the latest release binary):
+
+```bash
+curl -fsSL https://abrekhov.github.io/hypertunnel/install.sh | sh
+```
+
 ### Debian/Ubuntu (DEB)
 
 1. **Download the DEB package:**
@@ -26,22 +34,22 @@ This guide provides detailed installation instructions for HyperTunnel across di
 
    ```bash
    # For AMD64 (most common)
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.deb
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.deb
 
    # For ARM64 (Raspberry Pi, Apple Silicon via Linux)
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_arm64.deb
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_arm64.deb
    ```
 
 2. **Install the package:**
 
    ```bash
-   sudo apt install ./hypertunnel_VERSION_linux_amd64.deb
+   sudo apt install ./hypertunnel_linux_amd64.deb
    ```
 
    Or using `dpkg`:
 
    ```bash
-   sudo dpkg -i hypertunnel_VERSION_linux_amd64.deb
+   sudo dpkg -i hypertunnel_linux_amd64.deb
    sudo apt-get install -f  # Install any missing dependencies
    ```
 
@@ -59,27 +67,27 @@ This guide provides detailed installation instructions for HyperTunnel across di
 
    ```bash
    # For AMD64
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel-VERSION-amd64.rpm
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.rpm
 
    # For ARM64
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel-VERSION-arm64.rpm
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_arm64.rpm
    ```
 
 2. **Install the package:**
 
    **Fedora (dnf):**
    ```bash
-   sudo dnf install ./hypertunnel-VERSION-amd64.rpm
+   sudo dnf install ./hypertunnel_linux_amd64.rpm
    ```
 
    **RHEL/CentOS (yum):**
    ```bash
-   sudo yum install ./hypertunnel-VERSION-amd64.rpm
+   sudo yum install ./hypertunnel_linux_amd64.rpm
    ```
 
    **openSUSE (zypper):**
    ```bash
-   sudo zypper install ./hypertunnel-VERSION-amd64.rpm
+   sudo zypper install ./hypertunnel_linux_amd64.rpm
    ```
 
 3. **Verify installation:**
@@ -93,13 +101,13 @@ This guide provides detailed installation instructions for HyperTunnel across di
 1. **Download the APK package:**
 
    ```bash
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.apk
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.apk
    ```
 
 2. **Install the package:**
 
    ```bash
-   sudo apk add --allow-untrusted ./hypertunnel_VERSION_linux_amd64.apk
+   sudo apk add --allow-untrusted ./hypertunnel_linux_amd64.apk
    ```
 
 3. **Verify installation:**
@@ -124,16 +132,16 @@ For now, use the generic Linux binary or build from source.
 
    ```bash
    # For Intel Macs (AMD64)
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_darwin_amd64.tar.gz
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_darwin_amd64.tar.gz
 
    # For Apple Silicon (ARM64)
-   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_darwin_arm64.tar.gz
+   wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_darwin_arm64.tar.gz
    ```
 
 2. **Extract and install:**
 
    ```bash
-   tar -xzf hypertunnel_VERSION_darwin_*.tar.gz
+   tar -xzf hypertunnel_darwin_*.tar.gz
    sudo mv ht /usr/local/bin/
    sudo chmod +x /usr/local/bin/ht
    ```
@@ -150,7 +158,7 @@ Coming soon! HyperTunnel will be available via Homebrew tap.
 
 Planned commands:
 ```bash
-brew tap abrekhov/tap
+brew tap abrekhov/hypertunnel
 brew install hypertunnel
 ```
 
@@ -164,8 +172,7 @@ brew install hypertunnel
 
    Visit the [releases page](https://github.com/abrekhov/hypertunnel/releases) and download:
 
-   - `hypertunnel_VERSION_windows_amd64.zip` (64-bit)
-   - `hypertunnel_VERSION_windows_arm64.zip` (ARM64)
+   - `hypertunnel_windows_amd64.zip` (64-bit)
 
 2. **Extract the archive:**
 
@@ -274,7 +281,7 @@ To verify the integrity of downloaded packages:
 
    **Windows (PowerShell):**
    ```powershell
-   Get-FileHash hypertunnel_VERSION_windows_amd64.zip -Algorithm SHA256
+   Get-FileHash hypertunnel_windows_amd64.zip -Algorithm SHA256
    # Compare with checksums.txt manually
    ```
 
