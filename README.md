@@ -28,20 +28,28 @@ go build -o ht
 
 # On the cloud VM (receiver):
 ./ht
-# Paste the Mac's signal, press Enter twice
+# Paste the Mac's signal, then press Ctrl+D
 # Copy the VM's signal back to Mac
 
-# On Mac: paste VM's signal, press Enter twice
+# On Mac: paste VM's signal, then press Ctrl+D
 # Transfer starts automatically
 ```
 
 **Tips:**
 - Both machines need internet access
-- Press Enter twice after pasting a signal
+- Press Ctrl+D after pasting a signal
 - Use `--auto-accept` to skip confirmation prompts
 - Use `-v` for verbose debug output
 
 ## Installation
+
+### One-line Installer (Linux/macOS)
+
+```bash
+curl -fsSL https://abrekhov.github.io/hypertunnel/install.sh | sh
+```
+
+This downloads the latest release binary and installs `ht` to `/usr/local/bin` (or `~/.local/bin` if sudo is not available).
 
 ### Debian/Ubuntu (APT)
 
@@ -49,49 +57,52 @@ Download the latest `.deb` package from the [releases page](https://github.com/a
 
 ```bash
 # Download the latest .deb package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.deb
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.deb
 
 # Install with apt
-sudo apt install ./hypertunnel_VERSION_linux_amd64.deb
+sudo apt install ./hypertunnel_linux_amd64.deb
 
 # Or use dpkg directly
-sudo dpkg -i hypertunnel_VERSION_linux_amd64.deb
+sudo dpkg -i hypertunnel_linux_amd64.deb
 ```
 
 ### RPM-based Linux (Fedora, RHEL, CentOS)
 
 ```bash
 # Download the latest .rpm package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel-VERSION-amd64.rpm
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.rpm
 
 # Install with dnf/yum
-sudo dnf install ./hypertunnel-VERSION-amd64.rpm
+sudo dnf install ./hypertunnel_linux_amd64.rpm
 # or
-sudo yum install ./hypertunnel-VERSION-amd64.rpm
+sudo yum install ./hypertunnel_linux_amd64.rpm
 ```
 
 ### Alpine Linux
 
 ```bash
 # Download the latest .apk package
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_linux_amd64.apk
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.apk
 
 # Install with apk
-sudo apk add --allow-untrusted ./hypertunnel_VERSION_linux_amd64.apk
+sudo apk add --allow-untrusted ./hypertunnel_linux_amd64.apk
 ```
 
 ### macOS / Linux (Archives)
 
 ```bash
 # Download and extract the archive for your platform
-wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_VERSION_OS_ARCH.tar.gz
-tar -xzf hypertunnel_VERSION_OS_ARCH.tar.gz
+wget https://github.com/abrekhov/hypertunnel/releases/latest/download/hypertunnel_linux_amd64.tar.gz
+tar -xzf hypertunnel_linux_amd64.tar.gz
 sudo mv ht /usr/local/bin/
 ```
 
 ### Homebrew (macOS/Linux)
 
-Planned. Homebrew tap is not published yet.
+```bash
+brew tap abrekhov/hypertunnel
+brew install hypertunnel
+```
 
 ### Windows
 
@@ -114,6 +125,12 @@ export GOBIN="${GOPATH}/bin"
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
 go install github.com/abrekhov/hypertunnel@latest
 ```
+
+## GitHub Pages
+
+The installer script is hosted on GitHub Pages at:
+
+- `https://abrekhov.github.io/hypertunnel/install.sh`
 
 ## Usage
 
@@ -153,11 +170,6 @@ Both computers must have access to the Internet!
 # Enable verbose logging
 ./ht -v -f <file-or-directory>
 
-# Print version
-./ht version
-# or
-./ht --version
-
 # Encrypt a file before transfer
 ./ht encrypt -k "your-passphrase" <file>
 
@@ -192,7 +204,7 @@ Both computers must have access to the Internet!
 - [X] Basic TUI framework (Bubble Tea)
 
 **In Progress:**
-- [ ] Start candidates in any order (symmetric connection)
+- [X] Start candidates in any order (symmetric ICE role selection)
 - [ ] Terminal UI polish (keep signals copyable!)
 
 **Planned:**

@@ -778,9 +778,10 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
   - Auto-reconnect with exponential backoff
 
 #### 1.3 Connection Improvements (IN PROGRESS)
-- [ ] **Symmetric connection startup**
+- [x] **Bi-directional candidate exchange** ✅
   - Allow starting in any order (remove offer/answer dependency)
-  - Both peers act as ICE controllers initially
+  - Implement symmetric connection setup
+  - Peers select complementary ICE roles by ordering their connection parameters; reject an identical local/remote signal
 
 - [ ] **Multiple STUN/TURN servers** (FUTURE)
   - Default list: Google, Mozilla, Cloudflare STUN
@@ -1553,7 +1554,7 @@ package() {
 - ✅ Multi-platform packages
 - ⏳ Homebrew/Scoop
 - ✅ Zero critical security issues
-- ⏳ Symmetric connection (start in any order)
+- ✅ Symmetric connection (start in any order)
 
 ---
 
