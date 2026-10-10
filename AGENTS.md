@@ -781,7 +781,7 @@ Transform HyperTunnel into the **easiest, most robust, and beautiful P2P file/di
 - [x] **Bi-directional candidate exchange** ✅
   - Allow starting in any order (remove offer/answer dependency)
   - Implement symmetric connection setup
-  - Both peers act as ICE controllers initially
+  - Peers select complementary ICE roles by ordering their connection parameters; reject an identical local/remote signal
 
 - [ ] **Multiple STUN/TURN servers** (FUTURE)
   - Default list: Google, Mozilla, Cloudflare STUN

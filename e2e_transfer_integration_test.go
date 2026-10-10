@@ -1,10 +1,5 @@
 //go:build integration
 
-/*
- *   Copyright © 2021-2026 Anton Brekhov <anton@abrekhov.ru>
- *   All rights reserved.
- */
-
 package main
 
 import (
@@ -13,14 +8,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -28,199 +20,163 @@ import (
 )
 
 func TestE2ETransferNonInteractive(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("E2E transfer test is supported only on linux in CI")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-
-	binDir := t.TempDir()
-	htPath := filepath.Join(binDir, "ht")
-	build := exec.CommandContext(ctx, "go", "build", "-o", htPath, "./main.go")
+	bin := filepath.Join(t.TempDir(), "ht")
+	build := exec.CommandContext(ctx, "go", "build", "-o", bin, ".")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
-	buildOut, err := build.CombinedOutput()
-	if err != nil {
-		t.Fatalf("failed to build ht: %v\n%s", err, string(buildOut))
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
 	}
-
-	var lastErr error
-	for attempt := 1; attempt <= 2; attempt++ {
-		if attempt > 1 {
-			t.Logf("retrying E2E transfer (attempt %d/2)", attempt)
-		}
-		if err := runTransferAttempt(ctx, htPath); err != nil {
-			lastErr = err
-			continue
-		}
-		return
+	for _, senderFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("sender-first=%t", senderFirst), func(t *testing.T) {
+			transferCtx, stop := context.WithTimeout(ctx, time.Minute)
+			defer stop()
+			senderDir, receiverDir := t.TempDir(), t.TempDir()
+			payload := make([]byte, 256*1024)
+			if _, err := rand.Read(payload); err != nil {
+				t.Fatal(err)
+			}
+			name := "payload.bin"
+			if err := os.WriteFile(filepath.Join(senderDir, name), payload, 0600); err != nil {
+				t.Fatal(err)
+			}
+			var sender, receiver *transferProcess
+			if senderFirst {
+				sender = startTransferProcess(t, transferCtx, bin, senderDir, "-f", name)
+				_ = sender.signal(t, transferCtx)
+				receiver = startTransferProcess(t, transferCtx, bin, receiverDir, "--auto-accept")
+			} else {
+				receiver = startTransferProcess(t, transferCtx, bin, receiverDir, "--auto-accept")
+				_ = receiver.signal(t, transferCtx)
+				sender = startTransferProcess(t, transferCtx, bin, senderDir, "-f", name)
+			}
+			senderSignal := sender.signal(t, transferCtx)
+			receiverSignal := receiver.signal(t, transferCtx)
+			sender.input(t, receiverSignal)
+			receiver.input(t, senderSignal)
+			sender.wait(t, transferCtx)
+			receiver.wait(t, transferCtx)
+			got, err := os.ReadFile(filepath.Join(receiverDir, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sha256.Sum256(got) != sha256.Sum256(payload) {
+				t.Fatalf("received payload mismatch\nsender:\n%s\nreceiver:\n%s", sender.log.String(), receiver.log.String())
+			}
+		})
 	}
-
-	if lastErr == nil {
-		lastErr = errors.New("unknown failure")
-	}
-	t.Fatalf("E2E transfer failed after 2 attempts: %v", lastErr)
 }
 
-func runTransferAttempt(parent context.Context, htPath string) error {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+func TestE2ERejectOwnSignal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-
-	senderDir, err := os.MkdirTemp("", "ht-e2e-sender-*")
-	if err != nil {
-		return err
+	bin := filepath.Join(t.TempDir(), "ht")
+	build := exec.CommandContext(ctx, "go", "build", "-o", bin, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
 	}
-	defer os.RemoveAll(senderDir)
-
-	receiverDir, err := os.MkdirTemp("", "ht-e2e-receiver-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(receiverDir)
-
-	dummyName := "dummy.bin"
-	dummyPath := filepath.Join(senderDir, dummyName)
-	if err := writeRandomFile(dummyPath, 256*1024); err != nil {
-		return fmt.Errorf("write dummy file: %w", err)
-	}
-	sentHash, err := sha256File(dummyPath)
-	if err != nil {
-		return fmt.Errorf("hash sent file: %w", err)
-	}
-
-	// Start receiver.
-	receiver := exec.CommandContext(ctx, htPath, "--auto-accept", "--no-copy")
-	receiver.Dir = receiverDir
-	receiverIn, err := receiver.StdinPipe()
-	if err != nil {
-		return err
-	}
-	receiverStdout, err := receiver.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	receiverStderr, err := receiver.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	receiverLog := &lockedBuffer{}
-	receiverSignalCh := make(chan string, 1)
-	receiverDrainDone := make(chan struct{})
-	go func() {
-		defer close(receiverDrainDone)
-		drainOutput(receiverStdout, receiverLog, receiverSignalCh)
-	}()
-	go func() {
-		_, _ = io.Copy(receiverLog, receiverStderr)
-	}()
-
-	if err := receiver.Start(); err != nil {
-		return err
-	}
-	defer func() {
-		_ = receiver.Process.Kill()
-	}()
-
-	var receiverSignal string
+	peer := startTransferProcess(t, ctx, bin, t.TempDir(), "--auto-accept")
+	peer.input(t, peer.signal(t, ctx))
 	select {
-	case receiverSignal = <-receiverSignalCh:
+	case err := <-peer.exited:
+		if err == nil || !strings.Contains(peer.log.String(), "peer signal matches this node") {
+			t.Fatalf("expected own-signal rejection: %v\n%s", err, peer.log.String())
+		}
 	case <-ctx.Done():
-		return fmt.Errorf("receiver did not produce signal: %w\nreceiver log:\n%s", ctx.Err(), receiverLog.String())
+		t.Fatalf("own-signal rejection timed out\n%s", peer.log.String())
 	}
-
-	// Start sender.
-	sender := exec.CommandContext(ctx, htPath, "--file", dummyPath, "--no-copy")
-	sender.Dir = senderDir
-	senderIn, err := sender.StdinPipe()
-	if err != nil {
-		return err
-	}
-	senderStdout, err := sender.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	senderStderr, err := sender.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	senderLog := &lockedBuffer{}
-	senderSignalCh := make(chan string, 1)
-	senderDrainDone := make(chan struct{})
-	go func() {
-		defer close(senderDrainDone)
-		drainOutput(senderStdout, senderLog, senderSignalCh)
-	}()
-	go func() {
-		_, _ = io.Copy(senderLog, senderStderr)
-	}()
-
-	if err := sender.Start(); err != nil {
-		return err
-	}
-	defer func() {
-		_ = sender.Process.Kill()
-	}()
-
-	// Provide receiver signal to sender, then EOF.
-	if _, err := io.WriteString(senderIn, receiverSignal+"\n"); err != nil {
-		return fmt.Errorf("write receiver signal to sender stdin: %w", err)
-	}
-	if err := senderIn.Close(); err != nil {
-		return err
-	}
-
-	// Get sender signal and provide it to receiver.
-	var senderSignal string
-	select {
-	case senderSignal = <-senderSignalCh:
-	case <-ctx.Done():
-		return fmt.Errorf("sender did not produce signal: %w\nsender log:\n%s", ctx.Err(), senderLog.String())
-	}
-
-	if _, err := io.WriteString(receiverIn, senderSignal+"\n"); err != nil {
-		return fmt.Errorf("write sender signal to receiver stdin: %w", err)
-	}
-	if err := receiverIn.Close(); err != nil {
-		return err
-	}
-
-	receivedPath := filepath.Join(receiverDir, dummyName)
-	if err := waitForChecksum(ctx, receivedPath, sentHash); err != nil {
-		return fmt.Errorf("transfer did not complete: %w\nreceiver log:\n%s\nsender log:\n%s", err, receiverLog.String(), senderLog.String())
-	}
-
-	// Best-effort shutdown (ht may not exit on its own in sender mode).
-	_ = sender.Process.Kill()
-	_ = receiver.Process.Kill()
-	_ = sender.Wait()
-	_ = receiver.Wait()
-	<-receiverDrainDone
-	<-senderDrainDone
-
-	return nil
 }
 
-func drainOutput(r io.Reader, log io.Writer, signalCh chan<- string) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 1024), 1024*1024)
-	seenMarker := false
-	sentSignal := false
-	for scanner.Scan() {
-		line := scanner.Text()
-		_, _ = io.WriteString(log, line+"\n")
-		if strings.TrimSpace(line) == "Your connection signal:" {
-			seenMarker = true
-			continue
-		}
-		if seenMarker {
-			trimmed := strings.TrimSpace(line)
-			if trimmed != "" && !sentSignal {
-				signalCh <- trimmed
-				sentSignal = true
+type transferProcess struct {
+	stdin      io.WriteCloser
+	log        lockedBuffer
+	signalText string
+	signals    chan string
+	exited     chan error
+}
+
+func startTransferProcess(t *testing.T, ctx context.Context, bin, dir string, args ...string) *transferProcess {
+	t.Helper()
+	cmd := exec.CommandContext(ctx, bin, append(args, "--no-copy", "--no-tui")...)
+	cmd.Dir = dir
+	peer := &transferProcess{signals: make(chan string, 1), exited: make(chan error, 1)}
+	var err error
+	peer.stdin, err = cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stderr = &peer.log
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = peer.stdin.Close()
+	})
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 1024), 1024*1024)
+		marker := false
+		for scanner.Scan() {
+			line := scanner.Text()
+			_, _ = fmt.Fprintln(&peer.log, line)
+			if strings.TrimSpace(line) == "Your connection signal:" {
+				marker = true
+				continue
+			}
+			if marker && strings.TrimSpace(line) != "" {
+				peer.signals <- strings.TrimSpace(line)
+				marker = false
 			}
 		}
+		err := scanner.Err()
+		waitErr := cmd.Wait()
+		if err == nil {
+			err = waitErr
+		}
+		peer.exited <- err
+	}()
+	return peer
+}
+
+func (p *transferProcess) signal(t *testing.T, ctx context.Context) string {
+	t.Helper()
+	if p.signalText == "" {
+		select {
+		case p.signalText = <-p.signals:
+		case err := <-p.exited:
+			t.Fatalf("peer exited before producing signal: %v\n%s", err, p.log.String())
+		case <-ctx.Done():
+			t.Fatalf("signal timeout\n%s", p.log.String())
+		}
+	}
+	return p.signalText
+}
+
+func (p *transferProcess) input(t *testing.T, signal string) {
+	t.Helper()
+	if _, err := io.WriteString(p.stdin, signal+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (p *transferProcess) wait(t *testing.T, ctx context.Context) {
+	t.Helper()
+	select {
+	case err := <-p.exited:
+		if err != nil {
+			t.Fatalf("peer failed: %v\n%s", err, p.log.String())
+		}
+	case <-ctx.Done():
+		t.Fatalf("peer did not exit\n%s", p.log.String())
 	}
 }
 
@@ -229,72 +185,14 @@ type lockedBuffer struct {
 	b  bytes.Buffer
 }
 
-func (l *lockedBuffer) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.Write(p)
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
 }
 
-func (l *lockedBuffer) String() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.String()
-}
-
-func waitForChecksum(ctx context.Context, path, expected string) error {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			h, err := sha256File(path)
-			if err != nil {
-				continue
-			}
-			if h == expected {
-				return nil
-			}
-		}
-	}
-}
-
-func writeRandomFile(path string, size int) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	buf := make([]byte, 32*1024)
-	remaining := size
-	for remaining > 0 {
-		chunk := remaining
-		if chunk > len(buf) {
-			chunk = len(buf)
-		}
-		if _, err := rand.Read(buf[:chunk]); err != nil {
-			return err
-		}
-		if _, err := f.Write(buf[:chunk]); err != nil {
-			return err
-		}
-		remaining -= chunk
-	}
-	return f.Close()
-}
-
-func sha256File(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
 }
