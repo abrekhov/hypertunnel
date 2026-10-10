@@ -170,6 +170,10 @@ Both computers must have access to the Internet!
 # Enable verbose logging
 ./ht -v -f <file-or-directory>
 
+# Print version (use --long for commit and build date)
+./ht version
+./ht --version
+
 # Encrypt a file before transfer
 ./ht encrypt -k "your-passphrase" <file>
 
