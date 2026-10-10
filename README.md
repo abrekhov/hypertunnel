@@ -28,16 +28,16 @@ go build -o ht
 
 # On the cloud VM (receiver):
 ./ht
-# Paste the Mac's signal, press Enter twice
+# Paste the Mac's signal, then press Ctrl+D
 # Copy the VM's signal back to Mac
 
-# On Mac: paste VM's signal, press Enter twice
+# On Mac: paste VM's signal, then press Ctrl+D
 # Transfer starts automatically
 ```
 
 **Tips:**
 - Both machines need internet access
-- Press Enter twice after pasting a signal
+- Press Ctrl+D after pasting a signal
 - Use `--auto-accept` to skip confirmation prompts
 - Use `-v` for verbose debug output
 
@@ -204,7 +204,7 @@ Both computers must have access to the Internet!
 - [X] Basic TUI framework (Bubble Tea)
 
 **In Progress:**
-- [ ] Start candidates in any order (symmetric connection)
+- [X] Start candidates in any order (symmetric ICE role selection)
 - [ ] Terminal UI polish (keep signals copyable!)
 
 **Planned:**

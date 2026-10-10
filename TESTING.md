@@ -78,7 +78,13 @@ Integration tests are tagged and run separately:
 go test -v -tags=integration ./...
 ```
 
-These tests verify end-to-end functionality like encryption/decryption round-trips.
+`e2e_transfer_integration_test.go` builds the real CLI, transfers a random binary file with both startup orders, checks both processes exit successfully without forced shutdown or retries, and compares SHA-256 hashes. It also verifies that pasting a node's own signal fails instead of hanging. These CLI E2E scenarios run on macOS and Linux. Existing legacy encryption round-trip tests are also included by the integration tag.
+
+```bash
+go test -race -tags=integration -run '^TestE2E' -count=3 -timeout=8m .
+```
+
+Hash comparison in the test is not application-level checksum verification; that remains roadmap work.
 
 ### Benchmarks
 

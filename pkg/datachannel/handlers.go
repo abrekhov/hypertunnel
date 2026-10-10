@@ -18,7 +18,7 @@ import (
 )
 
 // FileTransferHandler handles incoming file transfers on a WebRTC data channel.
-func FileTransferHandler(channel *webrtc.DataChannel) {
+func FileTransferHandler(channel *webrtc.DataChannel, done func(error)) {
 	if log.IsLevelEnabled(log.DebugLevel) {
 		fmt.Printf("New DataChannel %s %d\n", channel.Label(), channel.ID())
 		log.Debugf("DataChannel Opts: %#v\n", channel)
@@ -40,7 +40,7 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 	_, err := os.Stat(targetPath)
 	targetExists := err == nil
 	if err != nil && !os.IsNotExist(err) {
-		log.Errorf("Failed to check existing %s: %v", targetPath, err)
+		done(fmt.Errorf("check destination %s: %w", targetPath, err))
 		return
 	}
 
@@ -72,8 +72,7 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 			if log.IsLevelEnabled(log.InfoLevel) {
 				log.Infoln("Transfer declined; ignoring incoming data channel.")
 			}
-			fmt.Println("Transfer declined.")
-
+			done(fmt.Errorf("transfer declined"))
 			return
 		}
 		if log.IsLevelEnabled(log.DebugLevel) {
@@ -90,8 +89,7 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 				if log.IsLevelEnabled(log.InfoLevel) {
 					log.Infoln("Overwrite declined; ignoring incoming transfer.")
 				}
-				fmt.Println("Transfer declined.")
-
+				done(fmt.Errorf("overwrite declined"))
 				return
 			}
 			if log.IsLevelEnabled(log.DebugLevel) {
@@ -104,18 +102,18 @@ func FileTransferHandler(channel *webrtc.DataChannel) {
 
 	if isArchive {
 		// For archives, collect data in memory then extract
-		handleArchiveTransfer(channel, targetPath)
+		handleArchiveTransfer(channel, targetPath, done)
 	} else {
 		// For regular files, write directly to disk
-		handleFileTransfer(channel, targetPath)
+		handleFileTransfer(channel, targetPath, done)
 	}
 }
 
 // handleFileTransfer handles receiving a regular file.
-func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
+func handleFileTransfer(channel *webrtc.DataChannel, targetPath string, done func(error)) {
 	fd, err := os.Create(targetPath) // #nosec G304 - targetPath is from datachannel label, validated before
 	if err != nil {
-		log.Errorf("Failed to create file: %v", err)
+		done(fmt.Errorf("create file: %w", err))
 		return
 	}
 
@@ -126,7 +124,7 @@ func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
 	// Register the handlers
 	channel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if _, err := fd.Write(msg.Data); err != nil {
-			log.Errorf("Failed to write data: %v", err)
+			done(fmt.Errorf("write file: %w", err))
 			return
 		}
 		progress.Update(int64(len(msg.Data)))
@@ -138,10 +136,11 @@ func handleFileTransfer(channel *webrtc.DataChannel, targetPath string) {
 			fmt.Printf("Data channel '%s'-'%d' closed. Transfer complete.\n", channel.Label(), channel.ID())
 		}
 		if err := fd.Close(); err != nil {
-			log.Errorf("Failed to close file: %v", err)
+			done(fmt.Errorf("close file: %w", err))
+			return
 		}
 		printReceiveSummary(channel.Label(), progress)
-		os.Exit(0)
+		done(nil)
 	})
 }
 
@@ -178,7 +177,7 @@ func printReceiveSummary(name string, progress *transfer.Progress) {
 }
 
 // handleArchiveTransfer handles receiving and extracting a directory archive.
-func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
+func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string, done func(error)) {
 	// Collect all data in a buffer
 	var buf bytes.Buffer
 	totalReceived := int64(0)
@@ -206,27 +205,27 @@ func handleArchiveTransfer(channel *webrtc.DataChannel, targetPath string) {
 		// Get current directory
 		currentDir, err := os.Getwd()
 		if err != nil {
-			log.Errorf("Failed to get current directory: %v", err)
-			os.Exit(1)
+			done(fmt.Errorf("get receive directory: %w", err))
+			return
 		}
 
 		// Create the target directory if it doesn't exist
 		destPath := filepath.Join(currentDir, targetPath)
 		if err := os.MkdirAll(destPath, 0750); err != nil {
-			log.Errorf("Failed to create directory: %v", err)
-			os.Exit(1)
+			done(fmt.Errorf("create directory: %w", err))
+			return
 		}
 
 		// Extract archive
 		if err := archive.ExtractTarGz(&buf, destPath, opts); err != nil {
-			log.Errorf("Failed to extract archive: %v", err)
-			os.Exit(1)
+			done(fmt.Errorf("extract archive: %w", err))
+			return
 		}
 
 		if log.IsLevelEnabled(log.DebugLevel) {
 			fmt.Printf("Directory extracted to: %s\n", destPath)
 		}
-		os.Exit(0)
+		done(nil)
 	})
 }
 

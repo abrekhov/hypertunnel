@@ -68,7 +68,7 @@ var rootCmd = &cobra.Command{
 	},
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: Connection,
+	RunE: Connection,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -158,22 +158,19 @@ func printTransferSummary(action string, total int64, progress *transfer.Progres
 	fmt.Printf("Time: %s, Avg: %s\n", transfer.FormatDuration(elapsed), transfer.FormatSpeed(avgSpeed))
 }
 
-// decideICERole deterministically selects the ICE role based on local/remote parameters.
-// When keys match, default to controlling to avoid a no-op role.
-func decideICERole(localICE webrtc.ICEParameters, localDTLS webrtc.DTLSParameters, remoteICE webrtc.ICEParameters, remoteDTLS webrtc.DTLSParameters) (webrtc.ICERole, string, string) {
+func decideICERole(localICE webrtc.ICEParameters, localDTLS webrtc.DTLSParameters, remoteICE webrtc.ICEParameters, remoteDTLS webrtc.DTLSParameters) (webrtc.ICERole, error) {
 	localKey := iceRoleKey(localICE, localDTLS)
 	remoteKey := iceRoleKey(remoteICE, remoteDTLS)
 	switch {
 	case localKey > remoteKey:
-		return webrtc.ICERoleControlling, localKey, remoteKey
+		return webrtc.ICERoleControlling, nil
 	case localKey < remoteKey:
-		return webrtc.ICERoleControlled, localKey, remoteKey
+		return webrtc.ICERoleControlled, nil
 	default:
-		return webrtc.ICERoleControlling, localKey, remoteKey
+		return webrtc.ICERoleControlled, fmt.Errorf("peer signal matches this node; paste the other peer's signal")
 	}
 }
 
-// iceRoleKey creates a stable ordering key from ICE and DTLS parameters.
 func iceRoleKey(iceParams webrtc.ICEParameters, dtlsParams webrtc.DTLSParameters) string {
 	var buf bytes.Buffer
 	buf.WriteString(iceParams.UsernameFragment)
@@ -195,7 +192,7 @@ func iceRoleKey(iceParams webrtc.ICEParameters, dtlsParams webrtc.DTLSParameters
 }
 
 // Connection handles the main WebRTC P2P connection logic for file transfer.
-func Connection(_ *cobra.Command, _ []string) {
+func Connection(_ *cobra.Command, _ []string) error {
 	datachannel.AutoAccept = autoAccept
 	datachannel.AcceptTimeout = autoAcceptTTL
 	if noCopy || !term.IsTerminal(int(os.Stdout.Fd())) {
@@ -263,8 +260,27 @@ func Connection(_ *cobra.Command, _ []string) {
 	sctp := api.NewSCTPTransport(dtls)
 	log.Debugf("SCTP: %#v\n", sctp)
 
-	// Handle incoming data channels (receiver)
-	sctp.OnDataChannel(datachannel.FileTransferHandler)
+	done := make(chan error, 1)
+	finish := func(err error) {
+		select {
+		case done <- err:
+		default:
+		}
+	}
+	defer func() {
+		if err := dtls.Stop(); err != nil {
+			log.Debugln(err)
+		}
+		if err := sctp.Stop(); err != nil {
+			log.Debugln(err)
+		}
+		if err := ice.Stop(); err != nil {
+			log.Debugln(err)
+		}
+	}()
+	sctp.OnDataChannel(func(channel *webrtc.DataChannel) {
+		datachannel.FileTransferHandler(channel, finish)
+	})
 	gatherFinished := make(chan struct{})
 	gatherer.OnLocalCandidate(func(i *webrtc.ICECandidate) {
 		if i == nil {
@@ -306,8 +322,9 @@ func Connection(_ *cobra.Command, _ []string) {
 	remoteSignal := datachannel.Signal{}
 	datachannel.Decode(datachannel.MustReadStdin(), &remoteSignal)
 	log.Infoln("Remote signal received.")
-	iceRole, localKey, remoteKey := decideICERole(iceParams, dtlsParams, remoteSignal.ICEParameters, remoteSignal.DTLSParameters)
-	log.Debugf("Selected ICE role: %s (local key %q vs remote key %q)", iceRole, localKey, remoteKey)
+	iceRole, err := decideICERole(iceParams, dtlsParams, remoteSignal.ICEParameters, remoteSignal.DTLSParameters)
+	cobra.CheckErr(err)
+	log.Debugf("Selected ICE role: %s", iceRole)
 	err = ice.SetRemoteCandidates(remoteSignal.ICECandidates)
 	cobra.CheckErr(err)
 
@@ -348,6 +365,9 @@ func Connection(_ *cobra.Command, _ []string) {
 		channel, err = api.NewDataChannel(sctp, dcParams)
 		cobra.CheckErr(err)
 
+		channel.OnClose(func() {
+			finish(nil)
+		})
 		channel.OnOpen(func() {
 			var r io.Reader
 			var totalSize int64
@@ -431,16 +451,9 @@ func Connection(_ *cobra.Command, _ []string) {
 				}
 			}
 		})
-		channel.OnClose(func() {
-			if verbose {
-				fmt.Printf("Ready state of channel: %s", channel.ReadyState().String())
-				fmt.Printf("Chunks from DataChannel '%s' transferred.\n", channel.Label())
-			}
-			os.Exit(0)
-		})
 	}
 
-	select {}
+	return <-done
 }
 
 // showTUIWelcome displays a welcome screen using the TUI
