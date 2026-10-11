@@ -78,13 +78,12 @@ Integration tests are tagged and run separately:
 go test -v -tags=integration ./...
 ```
 
-`e2e_transfer_integration_test.go` builds the real CLI, transfers a random binary file with both startup orders, checks both processes exit successfully without forced shutdown or retries, and compares SHA-256 hashes. It also verifies that pasting a node's own signal fails instead of hanging. These CLI E2E scenarios run on macOS and Linux. Existing legacy encryption round-trip tests are also included by the integration tag.
+`e2e_transfer_integration_test.go` builds the real CLI and runs full transfers over real transports: both startup orders, verified checksum delivery, decline-on-EOF (fail closed), directory extraction, self-signal rejection, and version output — checking natural exit statuses and payload hashes. In-process integration tests in `pkg/datachannel/webrtc_transfer_integration_test.go` exercise the verification protocol directly: success, checksum mismatch, truncation, oversize, empty files and legacy-peer rejection.
 
 ```bash
-go test -race -tags=integration -run '^TestE2E' -count=3 -timeout=8m .
+go test -race -tags=integration -count=3 -timeout=15m .
+go test -race -tags=integration -count=3 ./pkg/datachannel/
 ```
-
-Hash comparison in the test is not application-level checksum verification; that remains roadmap work.
 
 ### Benchmarks
 

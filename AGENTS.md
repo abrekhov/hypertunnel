@@ -118,9 +118,9 @@ func main() {
 4. Base64 encode and print signal to console
 5. Wait for user to paste remote signal
 6. Decode remote signal
-7. Start ICE/DTLS/SCTP transports
-8. Sender: Open data channel, stream file in 65534-byte chunks
-9. Receiver: Handle incoming data channel, write chunks to file
+7. Start ICE/DTLS/SCTP transports (complementary roles derived from connection parameters)
+8. Sender: sends HT_META metadata (filename, size, SHA-256), waits for acceptance ack, streams 65534-byte chunks, waits for the verified-completion ack
+9. Receiver: validates metadata, prompts/auto-accepts, streams to `<target>.htpart`, verifies size and checksum, publishes by rename, replies with acks
 
 **Key Configuration:**
 - Buffer size: 65534 bytes (max WebRTC data channel frame size)
@@ -540,19 +540,18 @@ Licensed under the Apache License, Version 2.0 (the "License");
 
 ### File Transfer Protocol
 
-**Sender Mode (`ht -f myfile.txt`):**
-1. Create WebRTC connection as "controlling" role
-2. Open data channel with filename as label
-3. Read file in 65534-byte chunks
-4. Send chunks via `channel.Send(chunk)`
-5. Wait 30 seconds after EOF, then exit
+Verified transfer protocol (both peers must run the same major protocol version):
+1. Sender computes SHA-256 of the file (or of the tar.gz archive for directories)
+2. Sender sends `HT_META:<json metadata>` (filename, size, checksum) as the first data-channel message
+3. Receiver validates metadata (traversal-safe filename), prompts or auto-accepts, and replies `HT_ACK:ok` or `HT_ACK:fail:<reason>`
+4. Sender streams the payload in 65534-byte chunks; receiver writes to a `.htpart` staging file and hashes on the fly
+5. When the declared size is reached, the receiver compares the hash; on match it renames the file into place (archives are extracted), replies `HT_ACK:ok`, and exits after the sender closes the channel; on mismatch it replies `HT_ACK:fail:checksum mismatch`, removes the staging file, and keeps any pre-existing destination untouched
+6. Legacy peers that do not send metadata are rejected with a clear error
+7. EOF on the accept prompt declines the transfer (fail closed); use `--auto-accept` for automation
 
-**Receiver Mode (`ht`):**
-1. Create WebRTC connection as "controlled" role
-2. Wait for incoming data channel
-3. Create file with channel label as filename
-4. Write received chunks to file
-5. Close file when data channel closes
+**Sender Mode (`ht -f myfile.txt`):** compute checksum → exchange signals → open channel → `datachannel.SendFile` (metadata → ack → chunks → final ack)
+
+**Receiver Mode (`ht`):** exchange signals → `datachannel.FileTransferHandler` → metadata validation → staging + hash → publish on verified match
 
 **Chunk Size:** 65534 bytes (WebRTC data channel max payload - 2 bytes overhead)
 

@@ -18,12 +18,14 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/abrekhov/hypertunnel/pkg/archive"
@@ -53,6 +55,8 @@ var (
 	autoCopy      bool
 	noCopy        bool
 	autoAcceptTTL time.Duration
+	icePortRange  string
+	iceLoopback   bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -78,6 +82,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.SilenceUsage = true
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
@@ -93,6 +98,9 @@ func init() {
 	rootCmd.Flags().BoolVar(&autoCopy, "copy", true, "Automatically copy the connection signal when possible")
 	rootCmd.Flags().BoolVar(&noCopy, "no-copy", false, "Disable automatic signal copy")
 	rootCmd.Flags().DurationVar(&autoAcceptTTL, "accept-timeout", 20*time.Second, "Auto-accept incoming files after this timeout (0 disables)")
+	rootCmd.Flags().StringVar(&icePortRange, "ice-port-range", "", "Restrict local ICE UDP ports, e.g. 443:443 (for firewalls that allow only specific UDP ports)")
+	rootCmd.Flags().BoolVar(&iceLoopback, "ice-loopback", false, "Use loopback ICE candidates only")
+	_ = rootCmd.Flags().MarkHidden("ice-loopback")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -202,6 +210,7 @@ func Connection(_ *cobra.Command, _ []string) error {
 	// Who receiver and who sender?
 	var isDirectory bool
 	var filesize int64
+	var info os.FileInfo
 	if file == "" {
 		isOffer = false
 		if verbose {
@@ -211,7 +220,8 @@ func Connection(_ *cobra.Command, _ []string) error {
 		}
 	} else {
 		isOffer = true
-		info, err := os.Stat(file)
+		var err error
+		info, err = os.Stat(file)
 		if os.IsNotExist(err) {
 			log.Panicln("File does not exist.")
 		}
@@ -241,13 +251,31 @@ func Connection(_ *cobra.Command, _ []string) error {
 		showTUIWelcome(isOffer, file, filesize)
 	}
 	// Prepare ICE gathering options
+	iceServers := []webrtc.ICEServer{
+		{URLs: []string{"stun:stun.l.google.com:19302"}},
+	}
+	if iceLoopback {
+		iceServers = nil
+	}
 	iceOptions := webrtc.ICEGatherOptions{
-		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{"stun:stun.l.google.com:19302"}},
-		},
+		ICEServers: iceServers,
 	}
 	// Create an API object
 	api := webrtc.NewAPI()
+	if icePortRange != "" || iceLoopback {
+		se := webrtc.SettingEngine{}
+		if iceLoopback {
+			se.SetIncludeLoopbackCandidate(true)
+			se.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeUDP4})
+			se.SetInterfaceFilter(func(name string) bool { return strings.HasPrefix(name, "lo") })
+		}
+		if icePortRange != "" {
+			lo, hi, err := parsePortRange(icePortRange)
+			cobra.CheckErr(err)
+			cobra.CheckErr(se.SetEphemeralUDPPortRange(lo, hi))
+		}
+		api = webrtc.NewAPI(webrtc.WithSettingEngine(se))
+	}
 	// Create the ICE gatherer
 	gatherer, err := api.NewICEGatherer(iceOptions)
 	cobra.CheckErr(err)
@@ -280,6 +308,13 @@ func Connection(_ *cobra.Command, _ []string) error {
 	}()
 	sctp.OnDataChannel(func(channel *webrtc.DataChannel) {
 		datachannel.FileTransferHandler(channel, finish)
+	})
+	ice.OnConnectionStateChange(func(state webrtc.ICETransportState) {
+		switch state {
+		case webrtc.ICETransportStateFailed:
+			finish(fmt.Errorf("ICE connection state: %s", state))
+		default:
+		}
 	})
 	gatherFinished := make(chan struct{})
 	gatherer.OnLocalCandidate(func(i *webrtc.ICECandidate) {
@@ -344,116 +379,96 @@ func Connection(_ *cobra.Command, _ []string) error {
 	cobra.CheckErr(err)
 	// Construct the data channel as the sender
 	if isOffer {
-		var id uint16 = 1
-		info, err := os.Stat(file)
-		cobra.CheckErr(err)
-
-		// Determine the label (filename to send)
-		label := info.Name()
+		var md *transfer.Metadata
+		var src io.Reader
+		var totalSize int64
 		if isDirectory {
-			// For directories, append .tar.gz to indicate it's archived
-			label += ".tar.gz"
+			log.Infoln("Creating archive...")
+			var buf bytes.Buffer
+			opts := archive.DefaultOptions()
+			_, err := archive.CreateTarGz(&buf, file, opts)
+			if err != nil {
+				return fmt.Errorf("create archive: %w", err)
+			}
+			log.Infof("Archive created: %d bytes", buf.Len())
+			sum := sha256.Sum256(buf.Bytes())
+			md = transfer.NewMetadata(info.Name()+".tar.gz", int64(buf.Len())).WithChecksum(transfer.ChecksumToHex(sum[:]))
+			md.IsArchive = true
+			src = &buf
+			totalSize = int64(buf.Len())
+		} else {
+			sum, err := transfer.CalculateFileChecksum(file)
+			if err != nil {
+				return fmt.Errorf("calculate checksum: %w", err)
+			}
+			md = transfer.NewMetadata(info.Name(), filesize).WithChecksum(transfer.ChecksumToHex(sum))
+			fd, err := os.Open(file) // #nosec G304 - file path is from user-provided flag
+			if err != nil {
+				return fmt.Errorf("open file: %w", err)
+			}
+			defer func() {
+				if closeErr := fd.Close(); closeErr != nil {
+					log.Errorf("Failed to close file: %v", closeErr)
+				}
+			}()
+			src = fd
+			totalSize = filesize
 		}
 
+		var id uint16 = 1
 		dcParams := &webrtc.DataChannelParameters{
-			Label:   label,
+			Label:   md.Filename,
 			ID:      &id,
 			Ordered: true,
 		}
-		log.Debugf("Fileinfo: %#v\n", info)
 		var channel *webrtc.DataChannel
 		channel, err = api.NewDataChannel(sctp, dcParams)
 		cobra.CheckErr(err)
 
-		channel.OnClose(func() {
-			finish(nil)
-		})
+		progress := transfer.NewProgress(totalSize)
+		progressStop := make(chan struct{})
+		go renderProgress("Sending", progress, progressStop)
 		channel.OnOpen(func() {
-			var r io.Reader
-			var totalSize int64
-
-			if isDirectory {
-				// Create archive on-the-fly
-				log.Infoln("Creating archive...")
-				var buf bytes.Buffer
-				opts := archive.DefaultOptions()
-				bytesWritten, err := archive.CreateTarGz(&buf, file, opts)
-				if err != nil {
-					log.Errorf("Failed to create archive: %v", err)
-					if err := channel.Close(); err != nil {
-						log.Debugln(err)
-					}
-					return
+			datachannel.SendFile(channel, md, &progressReader{r: src, progress: progress}, func(err error) {
+				close(progressStop)
+				if err == nil {
+					printTransferSummary("Sent", progress.Metrics().TransferredBytes, progress)
 				}
-				log.Infof("Archive created: %d bytes", bytesWritten)
-				r = &buf
-				totalSize = bytesWritten
-			} else {
-				// Regular file transfer
-				fd, err := os.Open(file) // #nosec G304 - file path is from user-provided flag
-				if err != nil {
-					log.Errorf("Failed to open file: %v", err)
-					if err := channel.Close(); err != nil {
-						log.Debugln(err)
-					}
-					return
-				}
-				defer func() {
-					if closeErr := fd.Close(); closeErr != nil {
-						log.Errorf("Failed to close file: %v", closeErr)
-					}
-				}()
-				r = fd
-				totalSize = filesize
-			}
-
-			progress := transfer.NewProgress(totalSize)
-			progressStop := make(chan struct{})
-			go renderProgress("Sending", progress, progressStop)
-
-			// Stream data in chunks
-			bufReader := bufio.NewReader(r)
-			chunk := make([]byte, 65534)
-			totalSent := int64(0)
-			for {
-				nbytes, readErr := bufReader.Read(chunk)
-				log.Debugln("nbytes:", nbytes)
-				if nbytes > 0 {
-					totalSent += int64(nbytes)
-					progress.Update(int64(nbytes))
-					if sendErr := channel.Send(chunk[:nbytes]); sendErr != nil {
-						log.Debugln(sendErr)
-						if err := channel.Close(); err != nil {
-							log.Debugln(err)
-						}
-						break
-					}
-				}
-				if readErr == io.EOF {
-					close(progressStop)
-					if verbose {
-						log.Infof("Transfer complete: %d bytes sent", totalSent)
-					}
-					printTransferSummary("Sent", totalSent, progress)
-					if err := channel.Close(); err != nil {
-						log.Debugln(err)
-					}
-					break
-				}
-				if readErr != nil {
-					close(progressStop)
-					log.Errorf("Failed reading: %v", readErr)
-					if err := channel.Close(); err != nil {
-						log.Debugln(err)
-					}
-					fmt.Println("Transfer failed. Check the file path and try again.")
-					break
-				}
-			}
+				finish(err)
+			})
 		})
 	}
 
 	return <-done
+}
+
+type progressReader struct {
+	r        io.Reader
+	progress *transfer.Progress
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
+	if n > 0 {
+		pr.progress.Update(int64(n))
+	}
+	return n, err
+}
+
+func parsePortRange(s string) (uint16, uint16, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid -ice-port-range %q: want min:max", s)
+	}
+	lo, err := strconv.Atoi(parts[0])
+	if err != nil || lo < 0 || lo > 65535 {
+		return 0, 0, fmt.Errorf("invalid -ice-port-range %q: bad min port", s)
+	}
+	hi, err := strconv.Atoi(parts[1])
+	if err != nil || hi < 0 || hi > 65535 || hi < lo {
+		return 0, 0, fmt.Errorf("invalid -ice-port-range %q: bad max port", s)
+	}
+	return uint16(lo), uint16(hi), nil
 }
 
 // showTUIWelcome displays a welcome screen using the TUI

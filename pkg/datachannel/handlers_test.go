@@ -66,9 +66,22 @@ func TestAskForConfirmation(t *testing.T) {
 	})
 
 	t.Run("returns true when timeout elapses", func(t *testing.T) {
+		pr, pw, err := os.Pipe()
+		require.NoError(t, err)
+		defer func() { _ = pr.Close() }()
+		defer func() { _ = pw.Close() }()
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_, _ = pw.WriteString("y\n")
+		}()
+		result := askForConfirmationWithTimeout("Test question", pr, 10*time.Millisecond)
+		assert.True(t, result, "Should auto-accept after timeout")
+	})
+
+	t.Run("returns false on EOF", func(t *testing.T) {
 		input := strings.NewReader("")
 		result := askForConfirmationWithTimeout("Test question", input, 5*time.Millisecond)
-		assert.True(t, result, "Should auto-accept after timeout")
+		assert.False(t, result, "Should decline on EOF")
 	})
 
 	t.Run("returns false after 3 invalid attempts", func(t *testing.T) {

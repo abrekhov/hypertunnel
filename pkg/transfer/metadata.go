@@ -29,13 +29,41 @@ import (
 // MetadataPrefix is prepended to metadata messages to distinguish them from file data.
 const MetadataPrefix = "HT_META:"
 
+// Ack messages carry receiver status: acceptance and verified completion.
+const (
+	AckPrefix = "HT_ACK:"
+	AckOK     = AckPrefix + "ok"
+)
+
+// AckFail encodes a rejection acknowledgement with the given reason.
+func AckFail(reason string) []byte {
+	return []byte(AckPrefix + "fail:" + reason)
+}
+
+// IsAckMessage reports whether data is an acknowledgement message.
+func IsAckMessage(data []byte) bool {
+	return bytes.HasPrefix(data, []byte(AckPrefix))
+}
+
+// AckError converts an acknowledgement message into an error for failed statuses.
+func AckError(data []byte) error {
+	if !IsAckMessage(data) {
+		return fmt.Errorf("unexpected acknowledgement message")
+	}
+	status := string(data[len(AckPrefix):])
+	if status == "ok" {
+		return nil
+	}
+	return fmt.Errorf("receiver rejected transfer: %s", strings.TrimPrefix(status, "fail:"))
+}
+
 // Metadata contains information about a file being transferred.
 type Metadata struct {
-	ModTime     time.Time   `json:"modtime,omitempty"`     // Modification time
-	Filename    string      `json:"filename"`              // Name of the file (without path)
-	Checksum    string      `json:"checksum,omitempty"`    // SHA-256 checksum (hex)
-	Size        int64       `json:"size"`                  // Size in bytes
-	Mode        os.FileMode `json:"mode,omitempty"`        // File permissions
+	ModTime     time.Time   `json:"modtime,omitempty"`      // Modification time
+	Filename    string      `json:"filename"`               // Name of the file (without path)
+	Checksum    string      `json:"checksum,omitempty"`     // SHA-256 checksum (hex)
+	Size        int64       `json:"size"`                   // Size in bytes
+	Mode        os.FileMode `json:"mode,omitempty"`         // File permissions
 	IsDirectory bool        `json:"is_directory,omitempty"` // True if this is a directory transfer
 	IsArchive   bool        `json:"is_archive,omitempty"`   // True if this is an archived directory
 }

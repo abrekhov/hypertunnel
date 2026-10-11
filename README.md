@@ -136,6 +136,8 @@ The installer script is hosted on GitHub Pages at:
 
 Both computers must have access to the Internet!
 
+The sender announces the filename, size and SHA-256 checksum; the receiver streams to a temporary file, verifies size and checksum, and only then publishes the file. Both peers must run a version with transfer verification (mixed versions fail with a clear message).
+
 ### Transfer a File
 
 ```bash
@@ -186,10 +188,11 @@ Both computers must have access to the Internet!
 - ✅ **File Transfer**: Secure P2P file transfer between machines behind NAT
 - ✅ **Directory Transfer**: Recursive directory transfer with automatic archiving (tar.gz)
 - ✅ **Encryption/Decryption**: AES-256-CTR file encryption with keyphrase
-- ✅ **Progress Tracking**: Real-time progress monitoring with checksums
-- ✅ **NAT Traversal**: WebRTC-based connection through STUN/TURN/ICE
+- ✅ **Progress Tracking**: Real-time progress monitoring
+- ✅ **Transfer Verification**: SHA-256 checksum and size verified by the receiver; files are staged and published only after verification
+- ✅ **NAT Traversal**: WebRTC-based connection through STUN/ICE, optional restricted UDP port range (`--ice-port-range`)
 - ✅ **Auto-accept Mode**: Skip confirmation prompts for automation
-- ✅ **File Integrity**: SHA-256 checksum verification
+- ✅ **Fail-closed Confirmation**: EOF on the accept prompt declines (use `--auto-accept` for automation)
 - ✅ **Cross-platform**: Linux, macOS, Windows support
 
 ## RoadMap
